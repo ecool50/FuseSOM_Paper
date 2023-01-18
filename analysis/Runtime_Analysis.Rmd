@@ -1,0 +1,115 @@
+---
+title: "Running time analysis"
+author: "Elijah WIllie"
+date: "2022-09-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+rm(list = ls())
+gc()
+library(tidyverse)  # data manipulation
+library(ggplot2)
+library(data.table)
+# library(rnndescent)
+# library(imcdatasets)
+library(flowAssist)
+library(FlowSOM)
+library(Rcpp)
+library(parallel)
+library(dplyr)
+library(psych)
+library(analogue)
+library(ggstatsplot)
+library(ggsci)
+library(rcartocolor)
+library(FuseSOM)
+set.seed(1994)
+library(miceadds)
+library("profmem")
+source.all('/home/ewillie/Documents/PhD/Spatial_Clustering/clustering/scripts/')
+```
+
+
+```{r}
+# read in the data
+hoch_dat <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Hoch2022_Melanoma_IMC/hoch2022_Melanoma_counts.csv', 
+                  nThread = 7)
+)
+# get markers of interest
+hoch_markers <- colnames(hoch_dat)[1:41]
+```
+
+
+```{r}
+hoch_sub <- hoch_dat[sample(nrow(hoch_dat), 100000), hoch_markers]
+```
+
+```{r}
+start_time <- Sys.time()
+p <- runFuseSOM(hoch_sub, markers = hoch_markers, numClusters = 10)
+end_time <- Sys.time()
+
+t <- end_time - start_time
+print(t)
+```
+
+```{r}
+runMemProf <- function(data,markers,n){
+  dat_sub <- data[sample(nrow(data), n), markers]
+  start_time <- Sys.time()
+  p <- profmem(runFuseSOM(dat_sub, markers = markers, numClusters = 10))
+  end_time <- Sys.time()
+  print(end_time - start_time)
+  
+  mem <- sum(p[!is.na(p$bytes), ]$bytes)/(1e9)
+  
+  return(mem)
+  
+}
+```
+
+
+
+```{r}
+res.mem <- vector(mode = 'numeric', length = 8)
+vals <- seq(100000, 800000, by = 100000)
+
+for(i in 1:length(vals)){
+  res.mem[[i]] <- runMemProf(data = hoch_dat, markers = hoch_markers, n = vals[i])
+  gc()
+}
+```
+
+```{r}
+res.times <- c(23, 45, 68, 114, 132, 168, 198, 251)
+```
+
+```{r}
+res.final <- data.frame(NumCells=log(vals), Mem=res.mem, Time=res.times)
+
+p.mem <- ggplot(res.final, aes(x=NumCells, y=Mem)) + 
+  geom_point(aes(size = 10)) +
+  theme_bw() + labs(x = "log(number of cells)", y = "Total memory (GB)") + 
+  theme(axis.text.x = element_text(size = 25),
+        axis.text.y = element_text(size = 25),
+        axis.title.y = element_text(size = 25),
+        axis.title.x = element_text(size = 25),
+        legend.position = 'none')
+
+p.time <- ggplot(res.final, aes(x=NumCells, y=Time)) + 
+  geom_point(aes(size=10)) +
+  theme_bw() + labs(x = "log(number of cells)", y = "Total time (seconds)") + 
+  theme(axis.text.x = element_text(size = 25),
+        axis.text.y = element_text(size = 25),
+        axis.title.y = element_text(size = 25),
+        axis.title.x = element_text(size = 25),
+        legend.position = 'none')
+```
+
+

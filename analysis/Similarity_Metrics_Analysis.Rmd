@@ -1,0 +1,1151 @@
+---
+title: "Similarity Metrics Analysis"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+rm(list = ls())
+gc()
+library(tidyverse)  # data manipulation
+library(ggplot2)
+library(data.table)
+library(rnndescent)
+library(imcdatasets)
+library(flowAssist)
+library(FlowSOM)
+library(hopach)
+library(Rcpp)
+library(parallel)
+library(dplyr)
+library(psych)
+library(analogue)
+# library(FuseSOM)
+set.seed(1994)
+# source('/albona/nobackup2/elijahw/spatial_analysis/clustering/utility_funcs.R')
+# source('/albona/nobackup2/elijahw/spatial_analysis/clustering/Rphenograph_custom.R')
+# source('/albona/nobackup2/elijahw/spatial_analysis/clustering/FlowSOM_custom.R')
+# source('/albona/nobackup2/elijahw/spatial_analysis/clustering/consenus_funcs.R')
+# source('/albona/nobackup2/elijahw/spatial_analysis/clustering/Plot_Funcs.R')
+# source('/albona/nobackup2/elijahw/spatial_analysis/clustering/func.R')
+
+library(miceadds)
+source.all('/albona/nobackup2/elijahw/spatial_analysis/clustering/scripts/')
+# dyn.load("/albona/nobackup2/elijahw/spatial_analysis/clustering/scripts/yasomi.so")
+# sourceCpp('/albona/nobackup2/elijahw/spatial_analysis/clustering/scripts/distMat.cpp')
+# sourceCpp('/albona/nobackup2/elijahw/spatial_analysis/clustering/scripts/instabCorrection.cpp')
+```
+
+
+# Maldegem2021
+## read in the data and get markers of interest
+```{r}
+maldegem_dat <- as.data.frame(fread(
+  '/albona/nobackup2/biostat/datasets/spatial/Maldegem2021_LungCancer_IMC/data/Maldegem2021_processed.csv'))
+
+# remove the unclassified cell types
+# maldegem_dat <- maldegem_dat[maldegem_dat$clustername3 != 'Unclassified', ]
+
+# rename the cluster column
+names(maldegem_dat)[names(maldegem_dat) == 'clustername3'] <- 'CellType'
+
+maldegem_markers <- colnames(maldegem_dat)[1:17]
+
+# generate subsets of the data
+# maldegem_subsets <- subsetMatrix(maldegem_dat)
+```
+
+
+## Run Clustering
+```{r}
+# maldegem.res <- RunPipeline(dat = maldegem_dat, markers = maldegem_markers)
+# maldegem.res$Dataset <- rep('Maldegem2021', nrow(maldegem.res))
+# # plot the results
+# p <- ggplot(maldegem.res, aes(x=Method, y=FM)) +
+#  geom_boxplot(aes(color = Method))
+
+
+# res.malde.eli <- RunSOM(maldegem_dat, maldegem_markers)
+# res.malde.flo <- FloSOMRun(maldegem_dat,
+#                            markers = maldegem_markers)
+# res.malde <- rbind(bind_rows(res.malde.eli), bind_rows(res.malde.flo))
+# res.malde$Method <- c('FuseSOM', 'FlowSOM')
+# res.malde$Dataset <- c('Maldegem', 'Maldegem')
+
+
+# generate prototypes
+data <- maldegem_dat[, maldegem_markers]
+# nPcs <- FuseSOM::computeGridSize(maldegem_dat[, maldegem_markers])
+
+sg <- FuseSOM:::somGrid(8,8, topo = 'hexagonal', with.dist = T)
+initRes <- FuseSOM:::somInitPca(as.matrix(data), somGrid = sg)
+
+
+somModel <- FuseSOM:::batchSom(as.matrix(data), sg,
+                                prototypes = initRes$prototypes,
+                                verbose = T, decrease = 'power'
+  )
+
+dat <- somModel$prototypes
+
+
+pear <- stats::cor(t(dat), method = 'pearson')
+cosi <- trqwe::cosineDist(dat)
+spear <- stats::cor(t(dat), method = 'spearman')
+S <- as.matrix(fuse(cor2dist(pear),cosi,cor2dist(spear)))
+
+
+res <- FCPS::HierarchicalClustering(S, ClusterNo = 16,
+                                      Type = 'AverageL')$Cls
+
+cluster_assignments <- res[somModel$classif]
+
+ComputeMetrics(maldegem_dat$CellType, res$clusters)
+```
+
+
+# Rendeiro2020
+## Read in the data and set markers
+```{r}
+rendeiro_dat <- as.data.frame(
+  fread('/dskh/nobackup/biostat/datasets/spatial/Rendeiro2020_Covid_IMC/data/Rendeiro2020_Covid_IMC_intensities.csv',
+             nThread = 32))
+
+# get the metadata
+rendeiro_meta <- as.data.frame(
+  fread('/dskh/nobackup/biostat/datasets/spatial/Rendeiro2020_Covid_IMC/data/Rendeiro2020_Covid_IMC_metadata.csv',
+             nThread = 32))
+
+# extract the markers of interest and add the cluster labels and image metatdata
+rendeiro_markers <- colnames(rendeiro_dat)[1:38]
+rendeiro_dat <- rendeiro_dat[, rendeiro_markers]
+
+# combine the metadata with the intensities and umap coordinates
+rendeiro_dat <- cbind(rendeiro_dat, cbind(rendeiro_meta))
+
+names(rendeiro_dat)[names(rendeiro_dat) == 'metacluster_label'] <- 'CellType'
+rendeiro_dat <- rendeiro_dat[rendeiro_dat$CellType != "nan", ]
+```
+
+## Run Clustering
+```{r}
+# rendeiro.res <- RunPipeline(dat = rendeiro_dat, markers = rendeiro_markers)
+# rendeiro.res$Dataset <- rep('Rendeiro2020', nrow(rendeiro.res))
+# 
+# # plot the results
+# p.rendeiro <- ggplot(rendeiro.res, aes(x=Method, y=FM)) +
+#   geom_boxplot(aes(color = Method))
+
+
+# res.ren.eli <- RunSOM(rendeiro_dat, rendeiro_markers)
+# res.ren.flo <- FloSOMRun(rendeiro_dat,
+#                          markers = rendeiro_markers)
+# res.ren <- rbind(bind_rows(res.ren.eli), bind_rows(res.ren.flo))
+# res.ren$Method <- c('FuseSOM', 'FlowSOM')
+# res.ren$Dataset <- c('Rendeiro', 'Rendeiro')
+
+
+# res.ren.full <- RunPipelineFull(rendeiro_dat, rendeiro_markers)
+# # get the mean values
+# res.ren.full <- setDT(res.ren.full)[,list(ARI=mean(ARI), NMI=mean(NMI), FM=mean(FM), Fmeasure = mean(Fmeasure)),
+#                               by=c('Method')]
+# res.ren.full$Dataset <- rep('Rendeiro et al', 2)
+res.ren <- RunDistAnalysis(rendeiro_dat, rendeiro_markers)
+```
+
+# Risom2022
+## Read in data and set markers
+```{r}
+risom_dat <- as.data.frame(
+  fread('/albona/nobackup2/biostat/datasets/spatial/Risom2022_BreastCancer_IMC/data/Single_Cell_Data.csv')
+)
+
+risom_markers <- c('CD45','SMA','CK7','CK5','VIM','CD31','PanKRT','ECAD',
+                   'Tryptase','MPO','CD20','CD3','CD8','CD4','CD14','CD68','FAP',
+                   'CD36','CD11c','HLADRDPDQ','P63','CD44')
+
+names(risom_dat)[names(risom_dat) == 'phenotype'] <- 'CellType'
+```
+
+## Run Clustering
+```{r}
+# risom.res <- RunPipeline(dat = risom_dat, markers = risom_markers)
+# risom.res$Dataset <- rep('Risom2022', nrow(risom.res))
+# 
+# # plot the results
+# p.risom <- ggplot(risom.res, aes(x=Method, y=FM)) +
+#   geom_boxplot(aes(color = Method))
+# 
+
+# res <- PhenoRun(risom_dat, markers = risom_markers)
+# res.risom <- RunSOM(data = risom_dat, markers = risom_markers)
+# res.risom.eli <- RunSOM(risom_dat, risom_markers)
+# res.risom.flo <- FloSOMRun(risom_dat,
+#                            markers = risom_markers)
+# res.risom <- rbind(bind_rows(res.risom.eli), bind_rows(res.risom.flo))
+# res.risom$Method <- c('FuseSOM', 'FlowSOM')
+# res.risom$Dataset <- c('Risom', 'Risom')
+
+# res.risom.full <- RunPipelineFull(risom_dat, risom_markers)
+# # get the mean values
+# res.risom.full <- setDT(res.risom.full)[,list(ARI=mean(ARI), NMI=mean(NMI), FM=mean(FM), Fmeasure = mean(Fmeasure)),
+#                               by=c('Method')]
+# res.risom.full$Dataset <- rep('Risom et al', 2)
+# res.risom <- RunDistAnalysis(risom_dat, risom_markers)
+
+
+# generate prototypes
+data <- risom_dat[, risom_markers]
+# nPcs <- FuseSOM::computeGridSize(risom_dat[, risom_markers])
+
+# sg <- somGrid(8,8, topo = 'hexagonal')
+# initRes <- somInitPca.default(risom_dat[, risom_markers], somGrid = sg)
+# # 
+# somModel <- batchSom(as.matrix(data), sg,
+#                                 prototypes = initRes$prototypes,
+#                                 verbose = T, decrease = 'power'
+#   )
+
+
+sg <- yasomi::somgrid(8,8, topo = 'hexagonal')
+initRes <- yasomi::sominit.pca(risom_dat[, risom_markers], somgrid = sg)
+
+somModel <- yasomi::batchsom(as.matrix(data), sg,
+                                prototypes = initRes$prototypes,
+                                verbose = T, decrease = 'power'
+  )
+
+dat <- somModel$prototypes
+
+
+pear <- stats::cor(t(dat), method = 'pearson')
+cosi <- trqwe::cosineDist(dat)
+spear <- stats::cor(t(dat), method = 'spearman')
+S <- as.matrix(fuse(cor2dist(pear),cosi,cor2dist(spear)))
+
+
+res <- FCPS::HierarchicalClustering(S, ClusterNo = 23,
+                                      Type = 'AverageL')$Cls
+
+cluster_assignments <- res[somModel$classif]
+ComputeMetrics(risom_dat$CellType, cluster_assignments)
+```
+
+# Damond2019 
+# Read in data and set markers
+```{r}
+damond_dat <- as.data.frame(
+  fread('/albona/nobackup2/biostat/datasets/spatial/Damond2019_Diabetes_IMC/data/Damond2010_Diabetes_IMC_celldata.csv')
+)
+
+
+# get the markers of interest
+damond_markers <- colnames(damond_dat)
+damond_markers <- damond_markers[1:36]
+
+# # normalize and scale the data
+# damond_dat[, damond_markers] <- None(damond_dat[, damond_markers])
+# damond_dat[, damond_markers] <- scale(damond_dat[, damond_markers])
+
+```
+
+## Run Clustering
+```{r}
+# damond.res <- RunPipeline(dat = damond_dat, markers = damond_markers)
+# damond.res$Dataset <- rep('Damond2019', nrow(damond.res))
+# 
+# # plot the results
+# p.damond <- ggplot(damond.res, aes(x=Method, y=ARI)) +
+#   geom_boxplot(aes(color = Method))
+
+# res.damond.eli <- RunSOM(damond_dat, damond_markers,
+#                          normalization = 'None')
+# res.damond.flo <- FloSOMRun(damond_dat,
+#                             markers = damond_markers, normalization = 'None')
+# res.damond <- rbind(bind_rows(res.damond.eli), bind_rows(res.damond.flo))
+# res.damond$Method <- c('FuseSOM', 'FlowSOM')
+# res.damond$Dataset <- c('Damond', 'Damond')
+
+# res.damond.full <- RunPipelineFull(damond_dat, damond_markers)
+# # get the mean values
+# res.damond.full <- setDT(res.damond.full)[,list(ARI=mean(ARI), NMI=mean(NMI), FM=mean(FM), Fmeasure = mean(Fmeasure)),
+#                               by=c('Method')]
+# res.damond.full$Dataset <- rep('Damond et al', 2)
+res.damond <- RunDistAnalysis(damond_dat, damond_markers)
+```
+
+# Jackson2020
+## Read in data and load markers
+```{r}
+# get the normalized data
+jackson_sce <- JacksonFischer2020Data(data_type = "sce")
+jackson_dat <- as.data.frame(t(jackson_sce@assays@data$counts))
+
+# add celltypes to counts data
+jackson_dat$CellType <- colData(jackson_sce)$metacluster
+
+# exclude channels from publication
+channel_exclude = c("ImageId" ,"CellId" ,"In115 115InIn115Di","Xe134 134XeXe134Di","Hg202 202HgHg202Di","Pb204 204PbPb204Di","Pb206 206PbPb206Di","ArAr80 80ArArArAr80Di","phospho Erk12", "10311239Ru96Di Rutheni","10311240Ru98Di Rutheni","10311241Ru99Di Rutheni", "10311242Ru100Di Rutheni","10311243Ru101Di Rutheni", "10311244Ru102Di Rutheni","10311245Ru104Di Rutheni","Xe126 126XeXe126Di","I127 127II127Di","Xe131 131XeXe131Di","Pb207 207PbPb207Di","Pb208 208PbPb208Di","EulerNumber","MajorAxisLength","MinorAxisLength", "Orientation","10331253Ir191Di Iridium","2971330Dy161Di EpCAM","Perimeter","1971527Ho165Di bCaten","483739Yb171Di Sox9","Solidity")
+
+good_channels = unique(colnames(jackson_dat))[!unique(colnames(jackson_dat)) %in% channel_exclude]
+
+jackson_dat <- jackson_dat[, good_channels]
+
+# get the markers of interest
+jackson_markers <- good_channels[1:34]
+```
+
+## Run Clustering
+```{r}
+# jackson.res <- RunPipeline(dat = jackson_dat, markers = jackson_markers)
+# jackson.res$Dataset <- rep('Jackson2020', nrow(jackson.res))
+# 
+# # plot the results
+# p.jackson <- ggplot(jackson.res, aes(x=Method, y=FM)) +
+#   geom_boxplot(aes(color = Method))
+
+# res.jackson.eli <- RunSOM(jackson_dat, jackson_markers,
+#                           normalization = 'None')
+# res.jackson.flo <- FloSOMRun(jackson_dat,
+#                              markers = jackson_markers, normalization = 'None')
+# res.jackson <- rbind(bind_rows(res.jackson.eli), bind_rows(res.jackson.flo))
+# res.jackson$Method <- c('FuseSOM', 'FlowSOM')
+# res.jackson$Dataset <- c('Jackson', 'Jackson')
+
+# res.jackson.full <- RunPipelineFull(jackson_dat, jackson_markers)
+# # get the mean values
+# res.jackson.full <- setDT(res.jackson.full)[,list(ARI=mean(ARI), NMI=mean(NMI), FM=mean(FM), Fmeasure = mean(Fmeasure)),
+#                               by=c('Method')]
+# res.jackson.full$Dataset <- rep('Jackson et al', 2)
+res.jackson <- RunDistAnalysis(jackson_dat, jackson_markers)
+```
+
+# Moldoveanu2022
+## read in data and set markers
+```{r}
+moldoveanu_dat <- as.data.frame(
+  fread('/albona/nobackup2/biostat/datasets/spatial/Moldoveanu20222_Melanoma_IMC/data/ICI_meanIntensity_processed.csv')
+)
+
+moldoveanu_dat_non_ICI <- as.data.frame(
+  fread('/albona/nobackup2/biostat/datasets/spatial/Moldoveanu20222_Melanoma_IMC/data/non-ICI_meanIntensity_processed.csv')
+)
+
+
+moldoveanu_metadata <- as.data.frame(
+  fread('/albona/nobackup2/biostat/datasets/spatial/Moldoveanu20222_Melanoma_IMC/data/ST4_cell_data.txt')
+)
+
+# combine both datasets
+moldoveanu_dat <- rbind(moldoveanu_dat, moldoveanu_dat_non_ICI)
+
+# order by object ID
+moldoveanu_dat <- moldoveanu_dat[match(moldoveanu_metadata$obj.id, moldoveanu_dat$obj.id), ]
+
+# get markers
+moldoveanu_markers <- colnames(moldoveanu_dat)[1:12]
+
+# add celltypes
+moldoveanu_dat$CellType <- moldoveanu_metadata$Cluster
+```
+
+## Run Clustering
+```{r}
+# moldoveanu.res <- RunPipeline(dat = moldoveanu_dat, markers = moldoveanu_markers)
+# moldoveanu.res$Dataset <- rep('Moldoveanu2022', nrow(moldoveanu.res))
+# 
+# # plot the results
+# p.moldoveanu <- ggplot(moldoveanu.res, aes(x=Method, y=ARI)) +
+#   geom_boxplot(aes(color = Method))
+
+# res.moldoveanu.eli <- RunSOM(moldoveanu_dat, moldoveanu_markers,
+#                              normalization = 'None')
+# res.moldoveanu.flo <- FloSOMRun(moldoveanu_dat,
+#                                 markers = moldoveanu_markers, normalization = 'None')
+# res.moldoveanu <- rbind(bind_rows(res.moldoveanu.eli), bind_rows(res.moldoveanu.flo))
+# res.moldoveanu$Method <- c('FuseSOM', 'FlowSOM')
+# res.moldoveanu$Dataset <- c('Moldoveanu', 'Moldoveanu')
+
+# res.moldoveanu.full <- RunPipelineFull(moldoveanu_dat, moldoveanu_markers)
+# # get the mean values
+# res.moldoveanu.full <- setDT(res.moldoveanu.full)[,list(ARI=mean(ARI), NMI=mean(NMI), FM=mean(FM), Fmeasure = mean(Fmeasure)),
+#                               by=c('Method')]
+# res.moldoveanu.full$Dataset <- rep('Moldoveanu et al', 2)
+res.moldoveanu <- RunDistAnalysis(moldoveanu_dat, moldoveanu_markers)
+```
+
+# Hoch 2022
+## read in data and set markers
+```{r}
+# read in the data
+hoch_dat <- as.data.frame(
+  fread('/albona/nobackup2/biostat/datasets/spatial/Hoch2022_Melanoma_IMC/data/hoch2022_Melanoma_counts.csv', 
+                  nThread = 32)
+)
+# get markers of interest
+hoch_markers <- colnames(hoch_dat)[1:41]
+```
+
+## Run Clustering
+```{r}
+# hoch.res <- RunPipeline(dat = hoch_dat, markers = hoch_markers)
+# hoch.res$Dataset <- rep('Hoch2022', nrow(hoch.res))
+# # plot the results
+# p.hoch <- ggplot(hoch.res, aes(x=Method, y=ARI)) +
+#   geom_boxplot(aes(color = Method))
+
+# res.hoch.eli <- RunSOM(hoch_dat, hoch_markers,
+#                        normalization = 'None')
+# res.hoch.flo <- FloSOMRun(hoch_dat, 
+#                           markers = hoch_markers, normalization = 'None')
+# res.hoch <- rbind(bind_rows(res.hoch.eli), bind_rows(res.hoch.flo))
+# res.hoch$Method <- c('FuseSOM', 'FlowSOM')
+# res.hoch$Dataset <- c('Hoch', 'Hoch')
+
+# res.hoch.full <- RunPipelineFull(hoch_dat, hoch_markers)
+# # get the mean values
+# res.hoch.full <- setDT(res.hoch.full)[,list(ARI=mean(ARI), NMI=mean(NMI), FM=mean(FM), Fmeasure = mean(Fmeasure)),
+#                               by=c('Method')]
+# res.hoch.full$Dataset <- rep('Hoch et al', 2)
+res.hoch <- RunDistAnalysis(hoch_dat, hoch_markers)
+```
+
+# Keren2018
+## Read in data set markers
+```{r}
+keren_dat <- as.data.frame(
+  fread('/albona/nobackup2/biostat/datasets/spatial/Keren2018_BreastCancer_IMC/data/cellData.csv'))
+
+# set markers
+keren_markers <- c('CD45', 'FoxP3', 'CD4', 'CD8', 'CD3', 'CD20', 'CD16', 'CD68', 
+                   'MPO', 'HLA-DR', 'Pan-Keratin', 'Keratin17', 'Keratin6', 'p53', 
+                   'Beta catenin', 'EGFR')
+# set the cell types
+names(keren_dat)[names(keren_dat) == 'Group'] <- 'CellType'
+```
+
+## Run clustering
+```{r}
+# keren.res <- RunPipeline(dat = keren_dat, markers = keren_markers)
+# keren.res$Dataset <- rep('Keren2018', nrow(keren.res))
+# 
+# # plot the results
+# p.keren <- ggplot(keren.res, aes(x=Method, y=FM)) +
+#   geom_boxplot(aes(color = Method))
+
+# res.keren.eli <- RunSOM(keren_dat, keren_markers,
+#                         normalization = 'None')
+# res.keren.flo <- FloSOMRun(keren_dat,
+#                            markers = keren_markers, normalization = 'None')
+# res.keren <- rbind(bind_rows(res.keren.eli), bind_rows(res.keren.flo))
+# res.keren$Method <- c('FuseSOM', 'FlowSOM')
+# res.keren$Dataset <- c('Keren', 'Keren')
+
+# res.keren.full <- RunPipelineFull(keren_dat, keren_markers)
+# # get the mean values
+# res.keren.full <- setDT(res.keren.full)[,list(ARI=mean(ARI), NMI=mean(NMI), FM=mean(FM), Fmeasure = mean(Fmeasure)),
+#                               by=c('Method')]
+# res.keren.full$Dataset <- rep('Keren et al', 2)
+
+res.keren <- RunDistAnalysis(keren_dat, keren_markers)
+```
+
+# McCaffery2022
+# load data and get markers
+```{r}
+# read in the data
+mccaferry_dat <- as.data.frame(
+  fread('/albona/nobackup2/biostat/datasets/spatial/McCaffery2022_Tuberculosis_IMC/data/allTB-ME_annotated.csv')
+)
+# get the markers
+mccaferry_markers <- colnames(mccaferry_dat)[6:42]
+
+# set the cell types
+names(mccaferry_dat)[names(mccaferry_dat) == 'cell_type'] <- 'CellType'
+
+mccaferry_dat <- subset(mccaferry_dat,
+                        select = c(mccaferry_markers, 'CellType'))
+
+# remove rows with NAs
+mccaferry_dat <- na.omit(mccaferry_dat)
+```
+
+## Run clustering
+```{r}
+# mccaferry.res <- RunPipeline(dat = mccaferry_dat, markers = mccaferry_markers)
+# mccaferry.res$Dataset <- rep('McCaffery2022', nrow(mccaferry.res))
+# 
+# # plot the results
+# p.mccaferry <- ggplot(mccaferry.res, aes(x=Method, y=NMI)) +
+#   geom_boxplot(aes(color = Method))
+
+# res.mccaferry.eli <- RunSOM(mccaferry_dat, mccaferry_markers,
+#                             normalization = 'None')
+# res.mccaferry.flo <- FloSOMRun(mccaferry_dat,
+#                                markers = mccaferry_markers, normalization = 'None')
+# res.mccaferry <- rbind(bind_rows(res.mccaferry.eli), bind_rows(res.mccaferry.flo))
+# res.mccaferry$Method <- c('FuseSOM', 'FlowSOM')
+# res.mccaferry$Dataset <- c('Mccaferry', 'Mccaferry')
+
+# res.mccaferry.full <- RunPipelineFull(mccaferry_dat, mccaferry_markers)
+# # get the mean values
+# res.mccaferry.full <- setDT(res.mccaferry.full)[,list(ARI=mean(ARI), NMI=mean(NMI), FM=mean(FM), Fmeasure = mean(Fmeasure)),
+#                               by=c('Method')]
+# 
+# res.mccaferry.full$Dataset <- rep('Mccaferry et al', 2)
+
+res.mccaferry <- RunDistAnalysis(mccaferry_dat, mccaferry_markers)
+```
+
+
+## Liu2022
+# Get data and extract markers
+```{r}
+liu_dat <- as.data.frame(
+  fread('/albona/nobackup2/biostat/datasets/spatial/Liu2022_Benchmarking_IMC/data/cell_table_size_normalized_clusters.csv')
+)
+
+liu_markers <- c('CD3', 'CD4', 'CD8', 'CD11c', 'CD20', 'CD31', 'CD45', 'CD56', 
+                 'CD68', 'PANCK', 'PAX5','Vimentin')
+
+# define cell types
+
+names(liu_dat)[names(liu_dat) == 'phenotype'] <- 'CellType'
+```
+
+## Run Clustering
+```{r}
+# liu.res <- RunPipeline(dat = liu_dat, markers = liu_markers)
+# liu.res$Dataset <- rep('Liu20222', nrow(liu.res))
+# 
+# # plot the results
+# p.liu <- ggplot(liu.res, aes(x=Method, y=FM)) +
+#   geom_boxplot(aes(color = Method))
+
+# res.liu.eli <- RunSOM(liu_dat, liu_markers,
+#                       normalization = 'None')
+# res.liu.flo <- FloSOMRun(liu_dat, 
+#                          markers = liu_markers, normalization = 'None')
+# res.liu <- rbind(bind_rows(res.liu.eli), bind_rows(res.liu.flo))
+# res.liu$Method <- c('FuseSOM', 'FlowSOM')
+# res.liu$Dataset <- c('Liu', 'Liu')
+
+# res.liu.full <- RunPipelineFull(liu_dat, liu_markers)
+# # get the mean values
+# res.liu.full <- setDT(res.liu.full)[,list(ARI=mean(ARI), NMI=mean(NMI), FM=mean(FM), Fmeasure = mean(Fmeasure)),
+#                               by=c('Method')]
+# 
+# res.liu.full$Dataset <- rep('Liu et al', 2)
+res.liu <- RunDistAnalysis(liu_dat, liu_markers)
+```
+
+## Schurch2020
+# Get data and extract markers
+```{r}
+schurch_dat <- read_csv("/albona/nobackup2/biostat/datasets/spatial/CODEX_Colon_Schurch2020/Data/CRC_clusters_neighborhoods_markers.csv") %>%
+    select(-1) %>% 
+    janitor::clean_names() %>% 
+  as.data.frame() 
+
+lev <- unique(schurch_dat$cluster_name)
+schurch_dat$CellType <- factor(schurch_dat$cluster_name, levels = lev, labels = janitor::make_clean_names(lev))
+
+# get the markers
+schurch_markers <- colnames(schurch_dat)[12:60]
+```
+
+
+# Run Clustering
+```{r}
+# schurch.res <- RunPipeline(dat = schurch_dat, markers = schurch_markers)
+# schurch.res$Dataset <- rep('Schurch2020', nrow(schurch.res))
+# 
+# # plot the results
+# p.schurch <- ggplot(schurch.res, aes(x=Method, y=FM)) +
+#   geom_boxplot(aes(color = Method))
+
+# res.schurch.eli <- RunSOM(schurch_dat, schurch_markers,normalization = 'None')
+# res.schurch.flo <- FloSOMRun(schurch_dat,
+#                              markers = schurch_markers, normalization = 'None')
+# res.schurch <- rbind(bind_rows(res.schurch.eli), bind_rows(res.schurch.flo))
+# res.schurch$Method <- c('FuseSOM', 'FlowSOM')
+# res.schurch$Dataset <- c('schurch', 'schurch')
+
+
+# res.schurch.full <- RunPipelineFull(schurch_dat, schurch_markers)
+# # get the mean values
+# res.schurch.full <- setDT(res.schurch.full)[,list(ARI=mean(ARI), NMI=mean(NMI), FM=mean(FM), Fmeasure = mean(Fmeasure)),
+#                               by=c('Method')]
+# 
+# res.schurch.full$Dataset <- rep('Schurch et al', 2)
+
+res.schurch <- RunDistAnalysis(schurch_dat, schurch_markers)
+```
+
+## Phillips2021
+# Get data and extract markers
+```{r}
+phillips_dat <- read_csv("/albona/nobackup2/biostat/datasets/spatial/Phillips2021_Lymphoma_CODEX/data/Raw_df_CODEX.csv") %>%
+    janitor::clean_names() %>% 
+  as.data.frame() 
+
+lev <- unique(phillips_dat$cluster_name)
+phillips_dat$CellType <- factor(phillips_dat$cluster_name, levels = lev, labels = janitor::make_clean_names(lev))
+
+phillips_dat <- phillips_dat[ , -which(names(phillips_dat) %in% 
+                                         c('cd11b','cd16','cd164','ccr4','ccr6',
+                                      'egfr', 'p53'))]
+
+
+# get the markers
+phillips_markers <- colnames(phillips_dat)[10:61]
+```
+
+# Run Clustering
+```{r}
+# phillips.res <- RunPipeline(dat = phillips_dat, markers = phillips_markers)
+# phillips.res$Dataset <- rep('phillips2020', nrow(phillips.res))
+# 
+# # plot the results
+# p.phillips <- ggplot(phillips.res, aes(x=Method, y=FM)) +
+#   geom_boxplot(aes(color = Method))
+
+# res.phillips.eli <- RunSOM(phillips_dat, phillips_markers,normalization = 'None')
+# res.phillips.flo <- FloSOMRun(phillips_dat,
+#                               markers = phillips_markers, normalization = 'None')
+# res.phillips <- rbind(bind_rows(res.phillips.eli), bind_rows(res.phillips.flo))
+# res.phillips$Method <- c('FuseSOM', 'FlowSOM')
+# res.phillips$Dataset <- c('phillips', 'phillips')
+
+# res.phillips.full <- RunPipelineFull(phillips_dat, phillips_markers)
+# # get the mean values
+# res.phillips.full <- setDT(res.phillips.full)[,list(ARI=mean(ARI), NMI=mean(NMI), FM=mean(FM), Fmeasure = mean(Fmeasure)),
+#                               by=c('Method')]
+# res.phillips.full$Dataset <- rep('Phillips et al', 2)
+
+res.phillips <- RunDistAnalysis(phillips_dat, phillips_markers)
+```
+
+## Lohoff2022
+# Get data and extract markers
+```{r}
+lohoff_dat <- as.data.frame(as.matrix(t(readRDS('/albona/nobackup2/biostat/datasets/spatial/Lohoff2022_Mouse_seqFISH/data/exprs.Rds'))))
+lohoff_metadata <- as.data.frame(readRDS('/albona/nobackup2/biostat/datasets/spatial/Lohoff2022_Mouse_seqFISH/data/metadata.Rds'))
+
+# remove Xist from columns
+lohoff_dat <- lohoff_dat[, -which(colnames(lohoff_dat) %in% 'Xist')]
+
+# get the top 50 pcs
+lohoff_pcs <- as.data.frame(gmodels::fast.prcomp(t(lohoff_dat), center = F)$rotation[, 1:50])
+
+# add the celltype information
+lohoff_pcs$CellType <- lohoff_metadata$celltype_mapped_refined
+
+lohoff_markers <- colnames(lohoff_pcs)[1:50]
+```
+
+# Run Clustering
+```{r}
+# res.lohoff.eli <- RunSOM(lohoff_pcs, lohoff_markers, normalization = 'None')
+# res.lohoff.flo <- FloSOMRun(lohoff_pcs, distance = 'pearson',
+#                               markers = lohoff_markers, normalization = 'None')
+# res.lohoff <- rbind(bind_rows(res.lohoff.eli), bind_rows(res.lohoff.flo))
+# res.lohoff$Method <- c('FuseSOM', 'FlowSOM')
+# res.lohoff$Dataset <- c('lohoff', 'lohoff')
+
+
+# lohoff.res <- RunPipeline(dat = lohoff_dat, markers = lohoff_markers)
+# lohoff.res$Dataset <- rep('lohoff2022', nrow(lohoff.res))
+# 
+# # plot the results
+# p.lohoff <- ggplot(lohoff.res, aes(x=Method, y=FM)) +
+#   geom_boxplot(aes(color = Method))
+
+# res.lohoff.full <- RunPipelineFull(lohoff_pcs, lohoff_markers)
+# # get the median values
+# res.lohoff.full <- setDT(res.phillips.full)[,list(ARI=median(ARI), NMI=median(NMI), 
+#                                                     FM=median(FM), Fmeasure = median(Fmeasure)),
+#                               by=c('Method')]
+# res.lohoff.full$Dataset <- rep('Lohoff et al', 2)
+
+res.lohoff <- RunDistAnalysis(lohoff_pcs, lohoff_markers)
+```
+
+```{r}
+res <- rbind(res.malde , res.ren, res.risom, res.damond, 
+             res.keren, res.jackson,
+             res.moldoveanu, res.liu, res.hoch, res.schurch, 
+             res.phillips, res.mccaferry, res.lohoff) %>% as.data.frame()
+res$ARI <- as.numeric(res$ARI)
+res$NMI <- as.numeric(res$NMI)
+res$FM <- as.numeric(res$FM)
+res$Fmeasure <- as.numeric(res$Fmeasure)
+res$Method <- as.character(res$Method)
+res$Method <- if_else(res$Method == 'FuseSOM', "FuseSOM", 'FlowSOM')
+
+write.csv(res, '/albona/nobackup2/elijahw/spatial_analysis/clustering/Distance_Analysis_results.csv', row.names = F)
+
+p.ari <- ggplot(res, aes(x=Method, y=ARI)) + geom_boxplot() +labs(title="FuseSOM vs FlowSOM Vanilla",
+        x ="Distance", y = "Adjusted Rand Index")
+p.nmi <- ggplot(res, aes(x=Method, y=NMI)) + geom_boxplot() +labs(title="FuseSOM vs FlowSOM Vanilla",
+        x ="Method", y = "Normalized Mutual Information")
+p.fm <- ggplot(res, aes(x=Method, y=FM)) + geom_boxplot() +labs(title="FuseSOM vs FlowSOM Vanilla",
+        x ="Method", y = "FM Index")
+p.fmeasure <- ggplot(res, aes(x=Method, y=Fmeasure)) + geom_boxplot() +labs(title="FuseSOM vs FlowSOM Vanilla",
+        x ="Method", y = "F Measure")
+
+p.final <- cowplot::plot_grid(p.ari, p.nmi, p.fm, p.fmeasure, labels = c('A', 'B', 'C', 'D'))
+
+# generate boxplots for t-test
+p.ari.t <- ggpaired(res, x = "Method", y = "ARI",
+          color = "Method", palette = "jco",
+          add = "jitter",line.size = 0.4, xlab = 'Method', 
+          ylab = 'ARI', point.size = 3, title = "FuseSOM vs FlowSOM-Vanilla",
+          font.label = list(size = 42, color = "black")) + 
+  stat_compare_means(paired = T, vjust = -0.5) 
+
+p.ari.t <- ggpar(p.ari.t, font.x = c(20, 'bold'),font.y = c(20, 'bold'),
+                 font.legend = c(15, 'bold'), font.title = c(20, 'bold'))
+
+p.nmi.t <- ggpaired(res, x = "Method", y = "NMI",
+          color = "Method", palette = "jco",
+          add = "jitter",line.size = 0.4, xlab = 'Method', 
+          ylab = 'NMI', point.size = 3, title = "FuseSOM vs FlowSOM-Vanilla",
+          font.label = list(size = 32, color = "black")) + 
+  stat_compare_means(paired = T, vjust = -0.5) 
+p.nmi.t <- ggpar(p.nmi.t, font.x = c(20, 'bold'),font.y = c(20, 'bold'),
+                 font.legend = c(15, 'bold'), font.title = c(20, 'bold'))
+
+p.fm.t <- ggpaired(res, x = "Method", y = "FM",
+          color = "Method", palette = "jco",
+          add = "jitter",line.size = 0.4, xlab = 'Method',
+          ylab = 'FM-Index',
+          point.size = 3, title = "FuseSOM vs FlowSOM-Vanilla",
+          font.label = list(size = 32, color = "black")) + 
+  stat_compare_means(paired = T, vjust = -0.5) 
+p.fm.t <- ggpar(p.fm.t, font.x = c(20, 'bold'),font.y = c(20, 'bold'),
+                 font.legend = c(15, 'bold'), font.title = c(20, 'bold'))
+
+p.fmeasure.t <- ggpaired(res, x = "Method", y = "Fmeasure",
+          color = "Method", palette = "jco",
+          add = "jitter",line.size = 0.4, xlab = 'Method',
+          ylab = 'FMeasure',
+          point.size = 3, title = "FuseSOM vs FlowSOM-Vanilla",
+          font.label = list(size = 32, color = "black")) + 
+  stat_compare_means(paired = T, vjust = -0.5) 
+p.fmeasure.t <- ggpar(p.fmeasure.t, font.x = c(20, 'bold'),font.y = c(20, 'bold'),
+                 font.legend = c(15, 'bold'), font.title = c(20, 'bold'))
+
+# compbine the test plots
+p.final.t <- cowplot::plot_grid(p.ari.t, p.nmi.t, p.fm.t, p.fmeasure.t,
+                                labels = c ('A','B', 'C', 'D'))
+```
+
+
+
+# Generate barplots
+```{r}
+p.bar.ari <- ggplot(res, aes(x=Dataset, y=ARI, fill=Method)) + 
+  geom_bar(stat = 'identity', position = position_dodge(), alpha = 0.75) + 
+  theme_bw() + 
+  coord_flip() + 
+   scale_fill_brewer(palette="Set1") + theme(legend.position="none") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        plot.title = element_text(color="Black", size=11,hjust = 0.5)) + 
+  labs(title = "ARI", x = "", y = "")
+
+p.bar.nmi <- ggplot(res, aes(x=Dataset, y=NMI, fill=Method)) + 
+  geom_bar(stat = 'identity', position = position_dodge(), alpha = 0.75) + 
+  theme_bw() +
+   scale_fill_brewer(palette="Set1") + theme(legend.position="none") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        axis.ticks.y = element_blank(),
+        axis.text.y = element_blank(),
+        plot.title = element_text(color="Black", size=11,hjust = 0.5)) + 
+  labs(title = "NMI", x = "", y = "") + 
+  coord_flip()
+
+p.bar.fm <- ggplot(res, aes(x=Dataset, y=FM, fill=Method)) + 
+  geom_bar(stat = 'identity', position = position_dodge(), alpha = 0.75) + 
+  theme_bw() +
+   scale_fill_brewer(palette="Set1") + theme(legend.position="none") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        axis.ticks.y = element_blank(),
+        axis.text.y = element_blank(),
+        plot.title = element_text(color="Black", size=11,hjust = 0.5)) + 
+  labs(title = "FM-Index", x = "", y = "") + 
+  coord_flip()
+
+p.bar.fmeasure <- ggplot(res, aes(x=Dataset, y=Fmeasure, fill=Method)) + 
+  geom_bar(stat = 'identity', position = position_dodge(), alpha = 0.75) + 
+  theme_bw() +
+   scale_fill_brewer(palette="Set1") + theme(legend.position="none") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        axis.ticks.y = element_blank(),
+        axis.text.y = element_blank(),
+        plot.title = element_text(color="Black", size=11,hjust = 0.5)) + 
+  labs(title = "Fmeasure", x = "", y = "") + 
+  coord_flip()
+```
+
+
+
+# Combine the results
+```{r}
+res.final <- read.csv('/albona/nobackup2/elijahw/spatial_analysis/clustering/Corr_vs_Eucl_10k_results.csv')
+res.final <- res.final[-which(res.final$Method %like% 'Elijah'), ]
+
+# get the median values
+res.final <- setDT(res.final)[,list(ARI=median(ARI), NMI=median(NMI), FM=median(FM), Fmeasure = median(Fmeasure)), 
+                              by=c('Dataset', 'Method')]
+res.final <- as.data.frame(res.final)
+res.final$Type <- if_else(res.final$Method %like% 'eucl', 'Euclidean', 'Correlation')
+
+# Get the NMI Rankings
+t <- res.final[res.final$Type == 'Euclidean', ]$NMI - res.final[res.final$Type == 'Correlation', ]$NMI
+res.final$NMI_ranking <- rep(t, each = 2)
+res.final[res.final$Type == 'Euclidean', ]$NMI_ranking <- if_else(res.final[res.final$Type == 'Euclidean', ]$NMI_ranking > 0, 'High', 'Low')
+res.final[res.final$Type == 'Correlation', ]$NMI_ranking <- if_else(res.final[res.final$Type == 'Correlation', ]$NMI_ranking > 0, 'Low', 'High')
+
+# The ARI Rankings
+t.ari <- res.final[res.final$Type == 'Euclidean', ]$ARI - res.final[res.final$Type == 'Correlation', ]$ARI
+res.final$ARI_ranking <- rep(t.ari, each = 2)
+res.final[res.final$Type == 'Euclidean', ]$ARI_ranking <- if_else(res.final[res.final$Type == 'Euclidean', ]$ARI_ranking > 0, 'High', 'Low')
+res.final[res.final$Type == 'Correlation', ]$ARI_ranking <- if_else(res.final[res.final$Type == 'Correlation', ]$ARI_ranking > 0, 'Low', 'High')
+
+# The FM rankings
+t.fm <- res.final[res.final$Type == 'Euclidean', ]$FM - res.final[res.final$Type == 'Correlation', ]$FM
+res.final$FM_ranking <- rep(t.fm, each = 2)
+res.final[res.final$Type == 'Euclidean', ]$FM_ranking <- if_else(res.final[res.final$Type == 'Euclidean', ]$FM_ranking > 0, 'High', 'Low')
+res.final[res.final$Type == 'Correlation', ]$FM_ranking <- if_else(res.final[res.final$Type == 'Correlation', ]$FM_ranking > 0, 'Low', 'High')
+
+# The FMeasure rankings
+t.Fmeasure<- res.final[res.final$Type == 'Euclidean', ]$Fmeasure - res.final[res.final$Type == 'Correlation', ]$Fmeasure
+res.final$Fmeasure_ranking <- rep(t.Fmeasure, each = 2)
+res.final[res.final$Type == 'Euclidean', ]$Fmeasure_ranking <- if_else(res.final[res.final$Type == 'Euclidean', ]$Fmeasure_ranking > 0, 'High', 'Low')
+res.final[res.final$Type == 'Correlation', ]$Fmeasure_ranking <- if_else(res.final[res.final$Type == 'Correlation', ]$Fmeasure_ranking > 0, 'Low', 'High')
+
+# res.final <- rbind(res.final[, 1:6], lohoff.res)
+# res.final <- rbind(maldegem.res, rendeiro.res, risom.res, damond.res, jackson.res,
+#                    moldoveanu.res, hoch.res, mccaferry.res, keren.res, schurch.res, phillips.res)
+# add method information
+
+
+p.final.ari <- ggplot(res.final, aes(x=Method, y=ARI)) + 
+  geom_boxplot(aes(color = Method)) + facet_wrap(~Dataset) +
+    theme(
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)
+    )
+
+p.final.nmi <- ggplot(res.final, aes(x=Method, y=NMI)) + 
+  geom_boxplot(aes(color = Method)) + facet_wrap(~Dataset) +
+    theme(
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)
+    )
+
+p.final.fm <- ggplot(res.final, aes(x=Method, y=FM)) + 
+  geom_boxplot(aes(color = Method)) + facet_wrap(~Dataset) +
+    theme(
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)
+    )
+
+# generate boxplots for t-test
+p.ari.t <- ggboxplot(res.final, x = "Type", y = "ARI",
+          color = "Type", palette = "jco",
+          add = "jitter") + stat_compare_means(paired = T)
+
+p.nmi.t <- ggboxplot(res.final, x = "Type", y = "NMI",
+          color = "Type", palette = "jco",
+          add = "jitter") + stat_compare_means(paired = T)
+
+p.fm.t <- ggboxplot(res.final, x = "Type", y = "FM",
+          color = "Type", palette = "jco",
+          add = "jitter") + stat_compare_means(paired = T)
+p.fmeasure.t <- ggboxplot(res.final, x = "Type", y = "Fmeasure",
+          color = "Type", palette = "jco",
+          add = "jitter") + stat_compare_means(paired = T)
+
+# compbine the test plots
+p.final.t <- cowplot::plot_grid(p.ari.t, p.nmi.t, p.fm.t, p.fmeasure.t,
+                                labels = c ('A','B', 'C', 'D'))
+
+p.all.ari <- ggplot(res.final, aes(x = Method, y = ARI)) + 
+  geom_boxplot(aes(color = Type)) + 
+  theme(
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)
+    ) + ylim(0,1)
+
+p.all.nmi <- ggplot(res.final, aes(x = Method, y = NMI)) + 
+  geom_boxplot(aes(color = Type)) + 
+  theme(
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)
+    ) + ylim(0,1)
+
+p.all.fm <- ggplot(res.final, aes(x = Method, y = FM)) + 
+  geom_boxplot(aes(color = Type)) + 
+  theme(
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)
+    ) + ylim(0,1)
+
+p.all.fmeasure <- ggplot(res.final, aes(x = Method, y = Fmeasure)) + 
+  geom_boxplot(aes(color = Type)) + 
+  theme(
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)
+    ) + ylim(0,1)
+
+p.final.all <- cowplot::plot_grid(p.all.ari, p.all.nmi, p.all.fm,
+                                  p.all.fmeasure, labels = c('A','B','C','D'))
+
+p.kmeans.ari <-ggplot(data=res.final[res.final$Method %like% 'kmeans', ], aes(x=Dataset, y=ARI, fill = Type)) +
+  geom_bar(stat = "identity",
+           position=position_dodge()) + labs(title="Kmeans") + 
+    theme(
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)
+    )
+
+p.flow.ari <-ggplot(data=res.final[res.final$Method %like% 'FloSOM', ], aes(x=Dataset, y=ARI, fill = Type)) +
+  geom_bar(stat = "identity",
+           position=position_dodge()) + labs(title="FloSOM") + 
+    theme(
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)
+    )
+p.pheno.ari <-ggplot(data=res.final[res.final$Method %like% 'Phengraph', ], aes(x=Dataset, y=ARI, fill = Type)) +
+  geom_bar(stat = "identity",
+           position=position_dodge()) + labs(title="Phengraph") + 
+    theme(
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)
+    )
+
+p.hclust.ari <-ggplot(data=res.final[res.final$Method %like% 'hclust', ], aes(x=Dataset, y=ARI, fill = Type)) +
+  geom_bar(stat = "identity",
+           position=position_dodge()) + labs(title="Hierarchical Clustering") + 
+    theme(
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)
+    )
+
+p.final.methods.ari <- cowplot::plot_grid(p.kmeans.ari, p.flow.ari, p.pheno.ari, 
+                                          p.hclust.ari, labels = c('A','B','C','D'))
+```
+
+
+```{r}
+h.nmi = ggplot(res.final[res.final$Method %like% 'kmeans', ], aes(x = Dataset, y = Type)) + 
+  geom_point(aes(size = NMI, color = NMI_ranking), alpha = 0.75) + 
+  labs( x= "", y = "", size = "", fill = "") +
+  theme(
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+      panel.background = element_blank(),
+      legend.position = "None"
+    )
+
+h.ari <-  ggplot(res.final[res.final$Method %like% 'kmeans', ], aes(x = Dataset, y = Type)) + 
+  geom_point(aes(size = ARI, color = ARI_ranking), alpha = 0.75) + 
+  labs( x= "", y = "", size = "", fill = "") +
+  theme(
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+      panel.background = element_blank(),
+      legend.position = "None"
+    )
+
+h.fm <-  ggplot(res.final[res.final$Method %like% 'kmeans', ], aes(x = Dataset, y = Type)) + 
+  geom_point(aes(size = FM, color = FM_ranking), alpha = 0.75) + 
+  labs( x= "", y = "", size = "", fill = "") +
+  theme(
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+      panel.background = element_blank(),
+      legend.position = "None"
+    )
+
+h.fmeasure <-  ggplot(res.final[res.final$Method %like% 'kmeans', ], aes(x = Dataset, y = Type)) + 
+  geom_point(aes(size = Fmeasure, color = Fmeasure_ranking), alpha = 0.75) + 
+  labs( x= "", y = "", size = "", fill = "") +
+  theme(
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+      panel.background = element_blank(),
+      legend.position = "None"
+    ) 
+
+```
+
+
+```{r}
+library(yasomi)
+library(EmbedSOM)
+library(batchelor)
+
+ncores <- 64
+use_bpparam <- BiocParallel::MulticoreParam(workers = ncores)
+use_bsparam <- BiocSingular::RandomParam()
+use_bnparam <- BiocNeighbors::AnnoyParam()
+
+ClusterPurity <- function(clusters, classes) {
+  sum(apply(table(classes, clusters), 2, max)) / length(clusters)
+}
+
+jaccard <- function(a, b) {
+    intersection = length(intersect(a, b))
+    union = length(a) + length(b) - intersection
+    return (intersection/union)
+}
+
+```
+
+
+```{r}
+myalg <- function(G){
+  n <- nrow(G)
+  M <- matrix(nrow = n, ncol = n)
+  
+  for(i in 1:n){
+    for(j in 1:n){
+      for(k in 1:n){
+        M[i,j] <- max(G[i,j], min(G[i,k], G[k,j]))
+      }
+    }
+  }
+  
+  return(M)
+}
+```
+
+
+
+```{r}
+compute_fisher <- function(pear,cosi,spear){
+  res_mat <- matrix(nrow = nrow(pear), ncol = ncol(pear))
+  for(i in 1:nrow(pear)){
+    for(j in 1:nrow(pear)){
+      res_mat[i,j] <- max(abs(pear[i,j]),abs(cosi[i,j]),abs(spear[i,j]))
+     
+    }
+  }
+  return(res_mat)
+}
+```
+
+
+
+```{r}
+dat_new <- rendeiro_dat[, rendeiro_markers]
+# dat_new <- percentile(dat_new)
+
+npcs <- SC3:::estkTW(dat_new) + 2
+
+sg <- yasomi::somgrid(xdim=npcs,ydim=npcs,topo="hex")
+#
+init.res <- yasomi::sominit.pca(dat_new, somgrid = sg)
+som_model <- yasomi::batchsom(as.matrix(dat_new), sg,
+                                prototypes = init.res$prototypes,
+                              verbose = T
+                                )
+mydata <- som_model$prototypes
+k_actual = length(unique(rendeiro_dat$CellType))
+
+pear <- stats::cor(t(mydata), method = 'pearson')
+cosi <- coop::tcosine(mydata)
+spear <- stats::cor(t(mydata), method = 'spearman')
+
+S <- as.matrix(fuse(cor2dist(pear),cor2dist(cosi),cor2dist(spear)))
+
+n_min <- ComputeMinClusterSize(som_model)
+
+k <- ComputeNumClusters(x = S, minClusterSize = n_min, alpha = 0.05)
+  
+res <-  FCPS::HierarchicalClustering(S, ClusterNo = k, Type = "AverageL")$Cls
+
+# hc1 = function(x, k){
+#   list(cluster = FCPS::HierarchicalClustering(S, ClusterNo = k, Type = "AverageL")$Cls)
+#   }
+# 
+# 
+# # gskmn = clusGap(x[, 1:2], FUN=kmeans, nstart=20, K.max = 6, B = 500)
+# gskmn = clusGap(S, FUN=hc1, K.max = 20, B = 50)
+# 
+# plot_clusgap = function(clusgap, title="Gap Statistic calculation results"){
+#     require("ggplot2")
+#     gstab = data.frame(clusgap$Tab, k=1:nrow(clusgap$Tab))
+#     p = ggplot(gstab, aes(k, gap)) + geom_line() + geom_point(size=5)
+#     p = p + geom_errorbar(aes(ymax=gap+SE.sim, ymin=gap-SE.sim))
+#     p = p + ggtitle(title)
+#     return(p)
+# }
+
+cluster_assignment <- res[som_model$classif]
+aricode::ARI(cluster_assignment, rendeiro_dat$CellType)
+aricode::NMI(cluster_assignment, rendeiro_dat$CellType)
+dendextend::FM_index(cluster_assignment, rendeiro_dat$CellType)[[1]]
+FlowSOM::FMeasure(as.numeric(cluster_assignment), as.numeric(as.factor(rendeiro_dat$CellType)))
+
+```
+
+
+```{r}
+p.pear <- ggplotify::as.ggplot(pheatmap(pear))
+p.cosi <- ggplotify::as.ggplot(pheatmap(cosi))
+p.spear <- ggplotify::as.ggplot(pheatmap(spear))
+p.s <- ggplotify::as.ggplot(pheatmap(pear*cosi*spear))
+
+p.final.all <- cowplot::plot_grid(p.pear, p.cosi, p.spear, p.s, 
+                                  labels = c('Pearson', 'Cosine', 'Spearman', 'Combined'))
+```
+
+
+
+```{r}
+weights <- seq(0, 1, 0.1)
+
+for(weight in weights){
+  S <- weight*pear + (1 - weight)*cosi
+  print(paste('Weight:',weight))
+  
+  res <- FCPS::HierarchicalClustering(S, ClusterNo = k, 
+                                    Type = 'AverageL')$Cls
+
+cluster_assignment <- res[som_model$classif]
+print(aricode::ARI(cluster_assignment, maldegem_dat$CellType))
+print((aricode::NMI(cluster_assignment, maldegem_dat$CellType)))
+print((dendextend::FM_index(cluster_assignment, maldegem_dat$CellType)[[1]]))
+print((FlowSOM::FMeasure(as.numeric(cluster_assignment), as.numeric(as.factor(maldegem_dat$CellType)))))
+}
+```
+
+
+```{r}
+par(mfrow=c(2,2))
+plot(pear,spear, main="Scatterplot of Pearson vs Spearman")
+plot(pear,cosi, main="Scatterplot of Pearson vs Cosine")
+plot(spear,cosi, main="Scatterplot of Spearman vs Cosine")
+```
+
+
+
+```{r}
+dat <- readRDS(file = '/albona/nobackup2/biostat/datasets/spatial/IMC_BreastCancer_Jackson2020/jacksonCells.rds')
+markers <- c("Cytokeratin 5",
+"Fibronectin",               "Cytokeratin 19",            "Cytokeratin 8/18",          "Twist",
+"CD68",                      "Keratin 14 (KRT14)",        "SMA",                       "Vimentin",
+ "c-Myc",                     "c-erbB-2 - Her2",           "CD3",
+"Erk1/2" ,                   "Slug"   ,                   "Rabbit IgG H L"   ,         "Progesterone Receptor A/B",
+"p53"    ,                   "CD44"   ,                   "EpCAM"   ,
+ "CD45"        ,              "GATA3"    ,                 "CD20"   ,                   "b-Catenin"   ,
+"Carbonic Anhydrase IX"   ,  "undefined"     ,            "Ki-67"    ,                 "EGFR"  ,
+"S6"       ,                 "Sox9"   ,                   "vWF"     ,                  "CD31"        ,
+"mTOR"       ,               "Cytokeratin 7"      ,       "pan Cytokeratin"    ,       "Keratin Epithelial"   ,
+"cleaved PARP"        ,      "Cleaved Caspase3")
+
+# Generate the prototypes
+som_model <- GeneratePrototypes(dat, markers = markers)
+
+prototypes <- som_model$prototypes
+
+labels <- ClusterPrototypes(som_model, distmet = 'all', k = 14)
+
+pcs <- gmodels::fast.prcomp(t(dat[, markers]))
+
+p <- generateHeatmap(dat, markers = markers, features_clust = labels)
+```
+

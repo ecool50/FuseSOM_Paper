@@ -1,0 +1,542 @@
+---
+title: "Distance Analysis"
+output: html_document
+date: '2022-08-17'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+rm(list = ls())
+gc()
+library(tidyverse)  # data manipulation
+library(ggplot2)
+library(data.table)
+# library(rnndescent)
+# library(imcdatasets)
+library(flowAssist)
+library(FlowSOM)
+library(Rcpp)
+library(parallel)
+library(dplyr)
+library(psych)
+library(analogue)
+library(ggstatsplot)
+library(ggsci)
+library(rcartocolor)
+set.seed(1994)
+library(miceadds)
+source.all('~/Documents/PhD/Spatial_Clustering/clustering/scripts/')
+```
+
+# Maldegem2021
+## read in the data and get markers of interest
+```{r}
+maldegem_dat <- as.data.frame(fread(
+  '~/Documents/PhD/Spatial_Clustering/Maldegem2021_LungCancer_IMC/Maldegem2021_processed.csv'))
+
+# remove the unclassified cell types
+# maldegem_dat <- maldegem_dat[maldegem_dat$clustername3 != 'Unclassified', ]
+
+# rename the cluster column
+names(maldegem_dat)[names(maldegem_dat) == 'clustername3'] <- 'CellType'
+
+maldegem_markers <- colnames(maldegem_dat)[1:17]
+
+res.malde <- RunDistAnalysis(maldegem_dat, maldegem_markers)
+
+rm(maldegem_dat)
+gc()
+```
+
+# Rendeiro2020
+## Read in the data and set markers
+```{r}
+rendeiro_dat <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Rendeiro2020_Covid_IMC/Rendeiro2020_Covid_IMC_intensities.csv',
+             nThread = 32))
+
+# get the metadata
+rendeiro_meta <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Rendeiro2020_Covid_IMC/Rendeiro2020_Covid_IMC_metadata.csv',
+             nThread = 32))
+
+# extract the markers of interest and add the cluster labels and image metatdata
+rendeiro_markers <- colnames(rendeiro_dat)[1:38]
+rendeiro_dat <- rendeiro_dat[, rendeiro_markers]
+
+# combine the metadata with the intensities and umap coordinates
+rendeiro_dat <- cbind(rendeiro_dat, cbind(rendeiro_meta))
+
+names(rendeiro_dat)[names(rendeiro_dat) == 'metacluster_label'] <- 'CellType'
+rendeiro_dat <- rendeiro_dat[rendeiro_dat$CellType != "nan", ]
+
+res.ren <- RunDistAnalysis(rendeiro_dat, rendeiro_markers)
+
+rm(rendeiro_dat)
+gc()
+```
+
+# Risom2022
+## Read in data and set markers
+```{r}
+risom_dat <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Risom2022_BreastCancer_IMC/Single_Cell_Data.csv')
+)
+
+risom_markers <- c('CD45','SMA','CK7','CK5','VIM','CD31','PanKRT','ECAD',
+                   'Tryptase','MPO','CD20','CD3','CD8','CD4','CD14','CD68','FAP',
+                   'CD36','CD11c','HLADRDPDQ','P63','CD44')
+
+names(risom_dat)[names(risom_dat) == 'manual_gating_phenotype'] <- 'CellType'
+
+res.risom <- RunDistAnalysis(risom_dat, risom_markers)
+
+rm(risom_dat)
+gc()
+```
+
+# Damond2019 
+# Read in data and set markers
+```{r}
+damond_dat <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Damond2019_Diabetes_IMC/Damond2010_Diabetes_IMC_celldata.csv')
+)
+
+
+# get the markers of interest
+damond_markers <- colnames(damond_dat)
+damond_markers <- damond_markers[1:36]
+
+res.damond <- RunDistAnalysis(damond_dat, damond_markers)
+
+rm(damond_dat)
+gc()
+```
+
+<!-- # Jackson2020 -->
+<!-- ## Read in data and load markers -->
+<!-- ```{r} -->
+<!-- # get the normalized data -->
+<!-- jackson_sce <- JacksonFischer2020Data(data_type = "sce") -->
+<!-- jackson_dat <- as.data.frame(t(jackson_sce@assays@data$counts)) -->
+
+<!-- # add celltypes to counts data -->
+<!-- jackson_dat$CellType <- colData(jackson_sce)$metacluster -->
+
+<!-- # exclude channels from publication -->
+<!-- channel_exclude = c("ImageId" ,"CellId" ,"In115 115InIn115Di","Xe134 134XeXe134Di","Hg202 202HgHg202Di","Pb204 204PbPb204Di","Pb206 206PbPb206Di","ArAr80 80ArArArAr80Di","phospho Erk12", "10311239Ru96Di Rutheni","10311240Ru98Di Rutheni","10311241Ru99Di Rutheni", "10311242Ru100Di Rutheni","10311243Ru101Di Rutheni", "10311244Ru102Di Rutheni","10311245Ru104Di Rutheni","Xe126 126XeXe126Di","I127 127II127Di","Xe131 131XeXe131Di","Pb207 207PbPb207Di","Pb208 208PbPb208Di","EulerNumber","MajorAxisLength","MinorAxisLength", "Orientation","10331253Ir191Di Iridium","2971330Dy161Di EpCAM","Perimeter","1971527Ho165Di bCaten","483739Yb171Di Sox9","Solidity") -->
+
+<!-- good_channels = unique(colnames(jackson_dat))[!unique(colnames(jackson_dat)) %in% channel_exclude] -->
+
+<!-- jackson_dat <- jackson_dat[, good_channels] -->
+
+<!-- # get the markers of interest -->
+<!-- jackson_markers <- good_channels[1:34] -->
+
+<!-- res.jackson <- RunDistAnalysis(jackson_dat, jackson_markers) -->
+
+<!-- rm(jackson_dat) -->
+<!-- gc() -->
+<!-- ``` -->
+
+# Moldoveanu2022
+## read in data and set markers
+```{r}
+moldoveanu_dat <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Moldoveanu20222_Melanoma_IMC/data/ICI_meanIntensity_processed.csv')
+)
+
+moldoveanu_dat_non_ICI <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Moldoveanu20222_Melanoma_IMC/data/non-ICI_meanIntensity_processed.csv')
+)
+
+
+moldoveanu_metadata <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Moldoveanu20222_Melanoma_IMC/data/ST4_cell_data.txt')
+)
+
+# combine both datasets
+moldoveanu_dat <- rbind(moldoveanu_dat, moldoveanu_dat_non_ICI)
+
+# order by object ID
+moldoveanu_dat <- moldoveanu_dat[match(moldoveanu_metadata$obj.id, moldoveanu_dat$obj.id), ]
+
+# get markers
+moldoveanu_markers <- colnames(moldoveanu_dat)[1:12]
+
+# add celltypes
+moldoveanu_dat$CellType <- moldoveanu_metadata$Cluster
+
+res.moldoveanu <- RunDistAnalysis(moldoveanu_dat, moldoveanu_markers)
+
+rm(moldoveanu_dat)
+gc()
+```
+
+# Hoch 2022
+## read in data and set markers
+```{r}
+# read in the data
+hoch_dat <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Hoch2022_Melanoma_IMC/hoch2022_Melanoma_counts.csv', 
+                  nThread = 7)
+)
+# get markers of interest
+hoch_markers <- colnames(hoch_dat)[1:41]
+
+res.hoch <- RunDistAnalysis(hoch_dat, hoch_markers)
+
+rm(hoch_markers)
+gc()
+```
+
+# Keren2018
+## Read in data set markers
+```{r}
+keren_dat <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Keren2018_BreastCancer_IMC/cellData.csv'))
+
+# set markers
+keren_markers <- c('CD45', 'FoxP3', 'CD4', 'CD8', 'CD3', 'CD20', 'CD16', 'CD68', 
+                   'MPO', 'HLA-DR', 'Pan-Keratin', 'Keratin17', 'Keratin6', 'p53', 
+                   'Beta catenin', 'EGFR')
+# set the cell types
+names(keren_dat)[names(keren_dat) == 'Group'] <- 'CellType'
+```
+
+## Run clustering
+```{r}
+res.keren <- RunDistAnalysis(keren_dat, keren_markers)
+
+rm(keren_dat)
+gc()
+```
+
+# McCaffery2022
+# load data and get markers
+```{r}
+# read in the data
+mccaferry_dat <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/McCaffery2022_Tuberculosis_IMC/allTB-ME_annotated.csv')
+)
+# get the markers
+mccaferry_markers <- colnames(mccaferry_dat)[6:42]
+
+# set the cell types
+names(mccaferry_dat)[names(mccaferry_dat) == 'cell_type'] <- 'CellType'
+
+mccaferry_dat <- subset(mccaferry_dat,
+                        select = c(mccaferry_markers, 'CellType'))
+
+# remove rows with NAs
+mccaferry_dat <- na.omit(mccaferry_dat)
+
+res.mccaferry <- RunDistAnalysis(mccaferry_dat, mccaferry_markers)
+
+rm(mccaferry_dat)
+gc()
+```
+
+## Liu2022
+# Get data and extract markers
+```{r}
+liu_dat <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Liu2022_Benchmarking_IMC/cell_table_size_normalized_clusters.csv')
+)
+
+liu_markers <- c('CD3', 'CD4', 'CD8', 'CD11c', 'CD20', 'CD31', 'CD45', 'CD56', 
+                 'CD68', 'PANCK', 'PAX5','Vimentin')
+
+# define cell types
+
+names(liu_dat)[names(liu_dat) == 'phenotype'] <- 'CellType'
+
+res.liu <- RunDistAnalysis(liu_dat, liu_markers)
+
+rm(liu_dat)
+gc()
+```
+
+## Schurch2020
+# Get data and extract markers
+```{r}
+schurch_dat <- read_csv("~/Documents/PhD/Spatial_Clustering/CODEX_Colon_Schurch2020/CRC_clusters_neighborhoods_markers.csv") %>%
+    select(-1) %>% 
+    janitor::clean_names() %>% 
+  as.data.frame() 
+
+lev <- unique(schurch_dat$cluster_name)
+schurch_dat$CellType <- factor(schurch_dat$cluster_name, levels = lev, labels = janitor::make_clean_names(lev))
+
+# get the markers
+schurch_markers <- colnames(schurch_dat)[12:60]
+
+res.schurch <- RunDistAnalysis(schurch_dat, schurch_markers)
+
+rm(schurch_dat)
+gc()
+```
+
+## Phillips2021
+# Get data and extract markers
+```{r}
+phillips_dat <- read_csv("~/Documents/PhD/Spatial_Clustering/Phillips2021_Lymphoma_CODEX/Raw_df_CODEX.csv") %>%
+    janitor::clean_names() %>% 
+  as.data.frame() 
+
+lev <- unique(phillips_dat$cluster_name)
+phillips_dat$CellType <- factor(phillips_dat$cluster_name, levels = lev, labels = janitor::make_clean_names(lev))
+
+phillips_dat <- phillips_dat[ , -which(names(phillips_dat) %in% 
+                                         c('cd11b','cd16','cd164','ccr4','ccr6',
+                                      'egfr', 'p53'))]
+
+
+# get the markers
+phillips_markers <- colnames(phillips_dat)[10:61]
+
+res.phillips <- RunDistAnalysis(phillips_dat, phillips_markers)
+
+rm(phillips_dat)
+gc()
+```
+
+## Lohoff2022
+# Get data and extract markers
+```{r}
+lohoff_dat <- as.data.frame(as.matrix(t(readRDS('~/Documents/PhD/Spatial_Clustering/Lohoff2022_Mouse_seqFISH/exprs.Rds'))))
+lohoff_metadata <- as.data.frame(readRDS('~/Documents/PhD/Spatial_Clustering/Lohoff2022_Mouse_seqFISH/metadata.Rds'))
+
+# remove Xist from columns
+lohoff_dat <- lohoff_dat[, -which(colnames(lohoff_dat) %in% 'Xist')]
+
+# get the top 50 pcs
+lohoff_pcs <- as.data.frame(gmodels::fast.prcomp(t(lohoff_dat), center = F)$rotation[, 1:50])
+
+# add the celltype information
+lohoff_pcs$CellType <- lohoff_metadata$celltype_mapped_refined
+
+lohoff_markers <- colnames(lohoff_pcs)[1:50]
+
+rm(lohoff_dat)
+gc()
+```
+
+# Run Clustering
+```{r}
+res.lohoff <- RunDistAnalysis(lohoff_pcs, lohoff_markers)
+```
+
+# Bortolomeazzi2020
+# Get data and extract markers
+```{r}
+bortolomeazzi_dat <- fread('~/Documents/PhD/Spatial_Clustering/IMC_ColorectalCancer_Bortolomeazzi2020/Single_Cell_Data.csv') %>% 
+  as.data.frame()
+
+
+# get markers, assume they use all for clustering
+bortolomeazzi_markers <- colnames(bortolomeazzi_dat)[16:45]
+
+# add the celltype information
+names(bortolomeazzi_dat)[names(bortolomeazzi_dat) == 'Population'] <- 'CellType'
+
+
+res.bortolomeazzi <- RunDistAnalysis(bortolomeazzi_dat, bortolomeazzi_markers)
+
+rm(bortolomeazzi_dat)
+gc()
+```
+
+# Brbic2022 - Intestine
+# Get data and extract markers
+```{r}
+brbic_int_dat <- fread('~/Documents/PhD/Spatial_Clustering/CODEX_Intestine_Tonsil_Brbic2022/B004_training_dryad.csv') %>% 
+  as.data.frame()
+
+# get markers, assume they use all for clustering
+brbic_int_markers <- colnames(brbic_int_dat)[2:49]
+
+# add the celltype information
+names(brbic_int_dat)[names(brbic_int_dat) == 'cell_type_A'] <- 'CellType'
+
+res.brbic_int <- RunDistAnalysis(brbic_int_dat, brbic_int_markers)
+
+rm(brbic_int_dat)
+gc()
+```
+
+# Brbic2022 - Tonsil
+# Get data and extract markers
+```{r}
+brbic_tons_dat <- fread('~/Documents/PhD/Spatial_Clustering/CODEX_Intestine_Tonsil_Brbic2022/BE_Tonsil_l3_dryad.csv') %>% 
+  as.data.frame()
+
+# get markers, assume they use all for clustering
+brbic_tons_markers <- colnames(brbic_tons_dat)[2:45]
+
+# add the celltype information
+names(brbic_tons_dat)[names(brbic_tons_dat) == 'cell_type'] <- 'CellType'
+
+res.brbic_tons <- RunDistAnalysis(brbic_tons_dat, brbic_tons_markers)
+
+rm(brbic_tons_dat)
+gc()
+```
+
+# compile the results
+```{r}
+res <- rbind(res.malde , res.ren, res.risom, res.damond, 
+             res.keren,
+             res.moldoveanu, res.liu, res.hoch, res.schurch, 
+             res.phillips, res.mccaferry, res.lohoff, res.bortolomeazzi,
+             res.brbic_int, res.brbic_tons) %>% as.data.frame()
+res$ARI <- as.numeric(res$ARI)
+res$NMI <- as.numeric(res$NMI)
+res$`FM-Index` <- as.numeric(res$`FM-Index`)
+res$FMeasure <- as.numeric(res$FMeasure)
+res$Method <- as.character(res$Method)
+
+write.csv(res, '~/Documents/PhD/Spatial_Clustering/clustering//Distance_Analysis_results.csv', row.names = F)
+```
+
+```{r}
+res <- read.csv('~/Documents/PhD/Spatial_Clustering/clustering/Distance_Analysis_results.csv')
+
+names(res)[names(res) == 'FM.Index'] <- 'FM-Index'
+```
+
+
+# plot results
+```{r}
+res.melted <- melt(res)
+# All, P +S, C+S, P+C, P, C, S
+res.melted$Method <- if_else(res.melted$Method == 'Cosine + Spearmman', 
+                             'Cosine + Spearman', res.melted$Method)
+
+res.melted$Method  <- factor(res.melted$Method , levels=c("Pearson", "Spearman", 
+                                                          "Cosine","Euclidean",
+                                                          "Pearson + Cosine",
+                                                          "Pearson + Spearman", 
+                                                          "Cosine + Spearman",
+                                                          "Pearson + Euclidean",
+                                                          "Spearson + Euclidean",
+                                                          "Cosine + Euclidean",
+                                                          "Pearson + Spearman + Cosine",
+                                                          "Pearson + Spearman + Euclidean",
+                                                          "Spearman + Cosine + Euclidean",
+                                                          "Pearson + Cosine + Euclidean",
+                                                          "All"
+                                                          ))
+
+t <- res.melted %>% group_by(Method, variable) %>% summarise(value = mean(value))
+
+t %>%
+  group_by(variable) %>%
+  summarise(max = max(value)) -> t.2
+
+left_join(t, t.2) %>%
+  mutate(Method = Method, color = value == max) %>%
+  filter(color == TRUE)-> t.3
+
+p.fmeasure <- ggplot(t[t$variable %like% 'FMeasure', ], aes(x=Method, y=value)) + 
+  geom_point(aes(size = 15)) + 
+  # geom_point(data=t.3, aes(x = Method, y = value), 
+  #                                        color = "red") +
+  facet_wrap(~variable, scales='free_y') + 
+  labs(title = "", x = "", y = "Score") + 
+  ylim(0.50, 0.70) +
+  theme_bw() + 
+  theme(legend.position  = 'None',
+      plot.title = element_text(color="Black", size=25, face="bold", hjust = 0.5),
+      plot.subtitle = element_text(color = "red", size = 25, hjust = 0.5),
+      axis.title.x = element_text(color="Black", size=25),
+      axis.title.y = element_text(color="Black", size=25),
+      axis.text.y = element_text(size = 25),
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 25),
+      strip.text.x = element_text(size = 25)
+    )
+
+
+```
+
+
+# Generate significance plot
+```{r}
+res$Type <- if_else(res$Method == 'All', 'All', 'Other')
+
+p.sig.ari <- ggbetweenstats(
+  data  = res, 
+  x     = Type,
+  y     = ARI,
+  xlab = "",
+  title = "", 
+  type = 'parametric', 
+  palette          = "uniform_startrek",
+  package          = "ggsci",
+  pairwise.comparisons = T,
+  results.subtitle = F,
+  outlier.tagging = F,
+  pairwise.display = 'all',
+  centrality.plotting = F,
+  plot.type = 'box'
+  ) + 
+  theme(axis.text.x = element_text(size = 11))
+
+p.sig.nmi <- ggbetweenstats(
+  data  = res,
+  x     = Type,
+  y     = NMI,
+  xlab = "",
+  title = "", 
+  type = 'parametric', 
+  palette          = "uniform_startrek",
+  package          = "ggsci",
+  pairwise.comparisons = T,
+  results.subtitle = F,
+  outlier.tagging = F,
+  pairwise.display = 'all',
+  centrality.plotting = F,
+  plot.type = 'box') + 
+  theme(axis.text.x = element_text(size = 11))
+
+p.sig.fm <- ggbetweenstats(
+  data  = res,
+  x     = Type,
+  y     = `FM-Index`,
+  xlab = "",
+  title = "", 
+  type = 'parametric', 
+  palette          = "uniform_startrek",
+  package          = "ggsci",
+  pairwise.comparisons = T,
+  results.subtitle = F,
+  outlier.tagging = F,
+  pairwise.display = 'all',
+  centrality.plotting = F,
+  plot.type = 'box') + 
+  theme(axis.text.x = element_text(size = 11))
+
+p.sig.fmeasure <- ggbetweenstats(
+  data  = res,
+  x     = Type,
+  y     = FMeasure,
+  xlab = "",
+  title = "", 
+  type = 'parametric', 
+  palette          = "uniform_startrek",
+  package          = "ggsci",
+  pairwise.comparisons = T,
+  results.subtitle = F,
+  outlier.tagging = F,
+  pairwise.display = 'all',
+  centrality.plotting = F,
+  plot.type = 'box') + 
+  theme(axis.text.x = element_text(size = 11))
+
+p.sig.final <- cowplot::plot_grid(p.sig.ari, p.sig.nmi, p.sig.fm, p.sig.fmeasure)
+```
+

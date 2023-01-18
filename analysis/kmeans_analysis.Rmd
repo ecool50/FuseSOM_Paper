@@ -1,0 +1,840 @@
+---
+title: "Kmeans Analysis"
+output: html_document
+date: '2022-06-28'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+rm(list = ls())
+gc()
+library(tidyverse)
+library(ggplot2)
+library(psych)
+library(analogue)
+library(data.table)
+library(DiffCorr)
+library(coop)
+library(miceadds)
+library(trqwe)
+library(ggstatsplot)
+library(ggsci)
+library(rcartocolor)
+library(parallelDist)
+library(parallel)
+# library(imcdatasets)
+library(umap)
+library(RColorBrewer)
+library(amap)
+source.all('/home/ewillie/Documents/PhD/Spatial_Clustering/clustering/scripts/')
+```
+
+Proximity Metrics: Euclidean, Manhattan, Maximum
+Correlation Metrics: Pearson, Spearman, Cosine
+
+Dataset: Maldegem 
+```{r}
+maldegem_dat <- as.data.frame(fread(
+  '~/Documents/PhD/Spatial_Clustering/Maldegem2021_LungCancer_IMC/Maldegem2021_processed.csv'))
+
+# remove the unclassified cell types
+# maldegem_dat <- maldegem_dat[maldegem_dat$clustername3 != 'Unclassified', ]
+
+# rename the cluster column
+names(maldegem_dat)[names(maldegem_dat) == 'clustername3'] <- 'CellType'
+
+maldegem_markers <- colnames(maldegem_dat)[1:17]
+```
+
+```{r}
+maldegem_subsets <- subsetMatrix(maldegem_dat, markers = maldegem_markers, rep = 5, nrows = 20000)
+res.corr.maldegem <- lapply(maldegem_subsets, kmeansRun, markers = maldegem_markers, 
+                              distmet = 'pearson') %>% bind_rows()
+res.prox.maldegem <- lapply(maldegem_subsets, kmeansRun, markers = maldegem_markers, 
+                            distmet = 'euclidean') %>% bind_rows()
+res.maldegem <- rbind(res.corr.maldegem, res.prox.maldegem)
+res.maldegem$Dataset <- rep('Maldegem et al', nrow(res.maldegem))
+```
+
+
+# Rendeiro2020
+## Read in the data and set markers
+```{r}
+rendeiro_dat <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Rendeiro2020_Covid_IMC/Rendeiro2020_Covid_IMC_intensities.csv',
+             nThread = 32))
+
+# get the metadata
+rendeiro_meta <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Rendeiro2020_Covid_IMC/Rendeiro2020_Covid_IMC_metadata.csv',
+             nThread = 32))
+
+# extract the markers of interest and add the cluster labels and image metatdata
+rendeiro_markers <- colnames(rendeiro_dat)[1:38]
+rendeiro_dat <- rendeiro_dat[, rendeiro_markers]
+
+# combine the metadata with the intensities and umap coordinates
+rendeiro_dat <- cbind(rendeiro_dat, cbind(rendeiro_meta))
+
+names(rendeiro_dat)[names(rendeiro_dat) == 'metacluster_label'] <- 'CellType'
+rendeiro_dat <- rendeiro_dat[rendeiro_dat$CellType != "nan", ]
+```
+
+```{r}
+rendeiro_subsets <- subsetMatrix(rendeiro_dat, markers = rendeiro_markers, rep = 5, nrows = 20000)
+res.corr.rendeiro <- lapply(rendeiro_subsets, kmeansRun, markers = rendeiro_markers, 
+                              distmet = 'pearson') %>% bind_rows()
+res.prox.rendeiro <- lapply(rendeiro_subsets, kmeansRun, markers = rendeiro_markers, 
+                              distmet = 'euclidean') %>% bind_rows()
+res.rendeiro <- rbind(res.corr.rendeiro, res.prox.rendeiro)
+res.rendeiro$Dataset <- rep('Rendeiro et al', nrow(res.rendeiro))
+```
+
+# Risom2022
+## Read in data and set markers
+```{r}
+risom_dat <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Risom2022_BreastCancer_IMC/Single_Cell_Data.csv')
+)
+
+risom_markers <- c('CD45','SMA','CK7','CK5','VIM','CD31','PanKRT','ECAD',
+                   'Tryptase','MPO','CD20','CD3','CD8','CD4','CD14','CD68','FAP',
+                   'CD36','CD11c','HLADRDPDQ','P63','CD44')
+
+names(risom_dat)[names(risom_dat) == 'manual_gating_phenotype'] <- 'CellType'
+```
+
+
+```{r}
+risom_subsets <- subsetMatrix(risom_dat, markers = risom_markers, rep = 5, nrows = 20000)
+res.corr.risom <- lapply(risom_subsets, kmeansRun, markers = risom_markers, 
+                              distmet = 'pearson') %>% bind_rows()
+res.prox.risom <- lapply(risom_subsets, kmeansRun, markers = risom_markers, 
+                              distmet = 'euclidean') %>% bind_rows()
+res.risom <- rbind(res.corr.risom, res.prox.risom)
+res.risom$Dataset <- rep('Risom et al', nrow(res.risom))
+```
+
+# Damond2019 
+# Read in data and set markers
+```{r}
+damond_dat <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Damond2019_Diabetes_IMC/Damond2010_Diabetes_IMC_celldata.csv')
+)
+
+
+# get the markers of interest
+damond_markers <- colnames(damond_dat)
+damond_markers <- damond_markers[1:36]
+```
+
+```{r}
+damond_subsets <- subsetMatrix(damond_dat, markers = damond_markers, rep = 5, nrows = 20000)
+res.corr.damond <- lapply(damond_subsets, kmeansRun, markers = damond_markers, 
+                              distmet = 'pearson') %>% bind_rows()
+res.prox.damond <- lapply(damond_subsets, kmeansRun, markers = damond_markers, 
+                              distmet = 'euclidean') %>% bind_rows()
+res.damond <- rbind(res.corr.damond, res.prox.damond)
+res.damond$Dataset <- rep('Damond et al', nrow(res.damond))
+```
+
+
+# Moldoveanu2022
+## read in data and set markers
+```{r}
+moldoveanu_dat <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Moldoveanu20222_Melanoma_IMC/data/ICI_meanIntensity_processed.csv')
+)
+
+moldoveanu_dat_non_ICI <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Moldoveanu20222_Melanoma_IMC/non-ICI_meanIntensity_processed.csv')
+)
+
+
+moldoveanu_metadata <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Moldoveanu20222_Melanoma_IMC/ST4_cell_data.txt')
+)
+
+# combine both datasets
+moldoveanu_dat <- rbind(moldoveanu_dat, moldoveanu_dat_non_ICI)
+
+# order by object ID
+moldoveanu_dat <- moldoveanu_dat[match(moldoveanu_metadata$obj.id, moldoveanu_dat$obj.id), ]
+
+# get markers
+moldoveanu_markers <- colnames(moldoveanu_dat)[1:12]
+
+# add celltypes
+moldoveanu_dat$CellType <- moldoveanu_metadata$Cluster
+```
+
+```{r}
+moldoveanu_subsets <- subsetMatrix(moldoveanu_dat, markers = moldoveanu_markers, rep = 5, nrows = 20000)
+res.corr.moldoveanu <- lapply(moldoveanu_subsets, kmeansRun, markers = moldoveanu_markers, 
+                              distmet = 'pearson') %>% bind_rows()
+res.prox.moldoveanu <- lapply(moldoveanu_subsets, kmeansRun, markers = moldoveanu_markers, 
+                              distmet = 'euclidean') %>% bind_rows()
+res.moldoveanu <- rbind(res.corr.moldoveanu, res.prox.moldoveanu)
+res.moldoveanu$Dataset <- rep('Moldoveanu et al', nrow(res.moldoveanu))
+```
+
+# Jackson2020
+## Read in data and load markers
+```{r}
+# get the normalized data
+# jackson_sce <- JacksonFischer2020Data(data_type = "sce")
+# jackson_dat <- as.data.frame(t(jackson_sce@assays@data$counts))
+# 
+# # add celltypes to counts data
+# jackson_dat$CellType <- colData(jackson_sce)$metacluster
+# 
+# # exclude channels from publication
+# channel_exclude = c("ImageId" ,"CellId" ,"In115 115InIn115Di","Xe134 134XeXe134Di","Hg202 202HgHg202Di","Pb204 204PbPb204Di","Pb206 206PbPb206Di","ArAr80 80ArArArAr80Di","phospho Erk12", "10311239Ru96Di Rutheni","10311640Ru98Di Rutheni","10311641Ru99Di Rutheni", "10311642Ru100Di Rutheni","10311643Ru101Di Rutheni", "10311644Ru102Di Rutheni","10311645Ru104Di Rutheni","Xe126 126XeXe126Di","I127 127II127Di","Xe131 131XeXe131Di","Pb207 207PbPb207Di","Pb208 208PbPb208Di","EulerNumber","MajorAxisLength","MinorAxisLength", "Orientation","10331253Ir191Di Iridium","2971330Dy161Di EpCAM","Perimeter","1971527Ho165Di bCaten","483739Yb171Di Sox9","Solidity")
+# 
+# good_channels = unique(colnames(jackson_dat))[!unique(colnames(jackson_dat)) %in% channel_exclude]
+# 
+# jackson_dat <- jackson_dat[, good_channels]
+# 
+# # get the markers of interest
+# jackson_markers <- good_channels[1:34]
+```
+
+```{r}
+# jackson_subsets <- subsetMatrix(jackson_dat, rep = 5, nrows = 20000)
+# res.corr.jackson <- lapply(jackson_subsets, kmeansRun, markers = jackson_markers, 
+#                            corr_metrics = corr_metrics, mc.cores = 64) %>% bind_rows()
+# res.prox.jackson <- lapply(jackson_subsets, kmeansRun, markers = jackson_markers, 
+#                            prox_metrics = prox_metrics, mc.cores = 64) %>% bind_rows()
+# res.jackson <- rbind(res.corr.jackson, res.prox.jackson)
+# res.jackson$Dataset <- rep('Jackson et al', nrow(res.jackson))
+```
+
+# Hoch 2022
+## read in data and set markers
+```{r}
+# read in the data
+hoch_dat <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Hoch2022_Melanoma_IMC/hoch2022_Melanoma_counts.csv', 
+                  nThread = 32)
+)
+# get markers of interest
+hoch_markers <- colnames(hoch_dat)[1:41]
+```
+
+```{r}
+hoch_subsets <- subsetMatrix(hoch_dat, markers = hoch_markers, rep = 5, nrows = 20000)
+res.corr.hoch <- lapply(hoch_subsets, kmeansRun, markers = hoch_markers, 
+                          distmet = 'pearson') %>% bind_rows()
+res.prox.hoch <- lapply(hoch_subsets, kmeansRun, markers = hoch_markers, 
+                          distmet = 'euclidean') %>% bind_rows()
+
+res.hoch <- rbind(res.corr.hoch, res.prox.hoch)
+res.hoch$Dataset <- rep('Hoch et al', nrow(res.hoch))
+```
+
+# Keren2018
+## Read in data set markers
+```{r}
+keren_dat <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Keren2018_BreastCancer_IMC/cellData.csv'))
+
+# set markers
+keren_markers <- c('CD45', 'FoxP3', 'CD4', 'CD8', 'CD3', 'CD20', 'CD16', 'CD68', 
+                   'MPO', 'HLA-DR', 'Pan-Keratin', 'Keratin17', 'Keratin6', 'p53', 
+                   'Beta catenin', 'EGFR')
+# set the cell types
+names(keren_dat)[names(keren_dat) == 'Group'] <- 'CellType'
+```
+
+## Run clustering
+```{r}
+keren_subsets <- subsetMatrix(keren_dat, markers = keren_markers, rep = 5, nrows = 20000)
+res.corr.keren <- lapply(keren_subsets, kmeansRun, markers = keren_markers, 
+                          distmet = 'pearson') %>% bind_rows()
+res.prox.keren <- lapply(keren_subsets, kmeansRun, markers = keren_markers, 
+                          distmet = 'euclidean') %>% bind_rows()
+
+res.keren <- rbind(res.corr.keren, res.prox.keren)
+res.keren$Dataset <- rep('Keren et al', nrow(res.keren))
+```
+
+# McCaffery2022
+# load data and get markers
+```{r}
+# read in the data
+mccaferry_dat <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/McCaffery2022_Tuberculosis_IMC/allTB-ME_annotated.csv')
+)
+# get the markers
+mccaferry_markers <- colnames(mccaferry_dat)[6:42]
+
+# set the cell types
+names(mccaferry_dat)[names(mccaferry_dat) == 'cell_type'] <- 'CellType'
+
+mccaferry_dat <- subset(mccaferry_dat,
+                        select = c(mccaferry_markers, 'CellType'))
+
+# remove rows with NAs
+mccaferry_dat <- na.omit(mccaferry_dat)
+```
+
+```{r}
+mccaferry_subsets <- subsetMatrix(mccaferry_dat, markers = mccaferry_markers, rep = 5)
+res.corr.mccaferry <- lapply(mccaferry_subsets, kmeansRun, markers = mccaferry_markers, 
+                               distmet = 'pearson') %>% bind_rows()
+res.prox.mccaferry <- lapply(mccaferry_subsets, kmeansRun, markers = mccaferry_markers, 
+                               distmet = 'euclidean') %>% bind_rows()
+
+res.mccaferry <- rbind(res.corr.mccaferry, res.prox.mccaferry)
+res.mccaferry$Dataset <- rep('Mccaferry et al', nrow(res.mccaferry))
+```
+
+## Liu2022
+# Get data and extract markers
+```{r}
+liu_dat <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Liu2022_Benchmarking_IMC/cell_table_size_normalized_clusters.csv')
+)
+
+liu_markers <- c('CD3', 'CD4', 'CD8', 'CD11c', 'CD20', 'CD31', 'CD45', 'CD56', 
+                 'CD68', 'PANCK', 'PAX5','Vimentin')
+
+# define cell types
+
+names(liu_dat)[names(liu_dat) == 'phenotype'] <- 'CellType'
+```
+
+
+```{r}
+liu_subsets <- subsetMatrix(liu_dat, markers = liu_markers, rep = 5, nrows = 20000)
+res.corr.liu <- lapply(liu_subsets, kmeansRun, markers = liu_markers, 
+                         distmet = 'pearson') %>% bind_rows()
+res.prox.liu <- lapply(liu_subsets, kmeansRun, markers = liu_markers, 
+                         distmet = 'euclidean') %>% bind_rows()
+
+res.liu <- rbind(res.corr.liu, res.prox.liu)
+res.liu$Dataset <- rep('Liu et al', nrow(res.liu))
+```
+
+
+## Schurch2020
+# Get data and extract markers
+```{r}
+schurch_dat <- read_csv("~/Documents/PhD/Spatial_Clustering/CODEX_Colon_Schurch2020/CRC_clusters_neighborhoods_markers.csv") %>%
+    select(-1) %>% 
+    janitor::clean_names() %>% 
+  as.data.frame() 
+
+lev <- unique(schurch_dat$cluster_name)
+schurch_dat$CellType <- factor(schurch_dat$cluster_name, levels = lev, labels = janitor::make_clean_names(lev))
+
+# get the markers
+schurch_markers <- colnames(schurch_dat)[12:60]
+```
+
+```{r}
+schurch_subsets <- subsetMatrix(schurch_dat, markers = schurch_markers, rep = 5, nrows = 20000)
+res.corr.schurch <- lapply(schurch_subsets, kmeansRun, markers = schurch_markers, 
+                             distmet = 'pearson') %>% bind_rows()
+res.prox.schurch <- lapply(schurch_subsets, kmeansRun, markers = schurch_markers, 
+                             distmet = 'euclidean') %>% bind_rows()
+res.schurch <- rbind(res.corr.schurch, res.prox.schurch)
+res.schurch$Dataset <- rep('Schurch et al', nrow(res.schurch))
+```
+
+## Phillips2021
+# Get data and extract markers
+```{r}
+phillips_dat <- read_csv("~/Documents/PhD/Spatial_Clustering/Phillips2021_Lymphoma_CODEX/Raw_df_CODEX.csv") %>%
+    janitor::clean_names() %>% 
+  as.data.frame() 
+
+lev <- unique(phillips_dat$cluster_name)
+phillips_dat$CellType <- factor(phillips_dat$cluster_name, levels = lev, labels = janitor::make_clean_names(lev))
+
+phillips_dat <- phillips_dat[ , -which(names(phillips_dat) %in% 
+                                         c('cd11b','cd16','cd164','ccr4','ccr6',
+                                      'egfr', 'p53'))]
+
+
+# get the markers
+phillips_markers <- colnames(phillips_dat)[10:61]
+```
+
+```{r}
+phillips_subsets <- subsetMatrix(phillips_dat, markers = phillips_markers, rep = 5, nrows = 20000)
+res.corr.phillips <- lapply(phillips_subsets, kmeansRun, markers = phillips_markers, 
+                            distmet = 'pearson') %>% bind_rows()
+res.prox.phillips <- lapply(phillips_subsets, kmeansRun, markers = phillips_markers, 
+                            distmet = 'euclidean') %>% bind_rows()
+
+res.phillips <- rbind(res.corr.phillips, res.prox.phillips)
+res.phillips$Dataset <- rep('Phillips et al', nrow(res.phillips))
+```
+
+## Lohoff2022
+# Get data and extract markers
+```{r}
+lohoff_dat <- as.data.frame(as.matrix(t(readRDS('~/Documents/PhD/Spatial_Clustering/Lohoff2022_Mouse_seqFISH/exprs.Rds'))))
+lohoff_metadata <- as.data.frame(readRDS('~/Documents/PhD/Spatial_Clustering/Lohoff2022_Mouse_seqFISH/metadata.Rds'))
+
+# remove Xist from columns
+lohoff_dat <- lohoff_dat[, -which(colnames(lohoff_dat) %in% 'Xist')]
+
+# get the top 50 pcs
+lohoff_pcs <- as.data.frame(gmodels::fast.prcomp(t(lohoff_dat), center = F)$rotation[, 1:50])
+
+# add the celltype information
+lohoff_pcs$CellType <- lohoff_metadata$celltype_mapped_refined
+
+lohoff_markers <- colnames(lohoff_pcs)[1:50]
+
+```
+
+```{r}
+lohoff_subsets <- subsetMatrix(lohoff_pcs, markers = lohoff_markers, rep = 5, nrows = 20000)
+res.corr.lohoff <- lapply(lohoff_subsets, kmeansRun, markers = lohoff_markers, 
+                            distmet = 'pearson') %>% bind_rows()
+res.prox.lohoff <- lapply(lohoff_subsets, kmeansRun, markers = lohoff_markers, 
+                            distmet = 'euclidean') %>% bind_rows()
+
+res.lohoff <- rbind(res.corr.lohoff, res.prox.lohoff)
+res.lohoff$Dataset <- rep('Lohoff et al', nrow(res.lohoff))
+```
+
+
+# Bortolomeazzi2020
+# Get data and extract markers
+```{r}
+bortolomeazzi_dat <- fread('~/Documents/PhD/Spatial_Clustering/IMC_ColorectalCancer_Bortolomeazzi2020/Single_Cell_Data.csv') %>% 
+  as.data.frame()
+
+# get markers, assume they use all for clustering
+bortolomeazzi_markers <- colnames(bortolomeazzi_dat)[16:45]
+
+# add the celltype information
+names(bortolomeazzi_dat)[names(bortolomeazzi_dat) == 'Population'] <- 'CellType'
+```
+
+```{r}
+bortolomeazzi_subsets <- subsetMatrix(bortolomeazzi_dat, markers = bortolomeazzi_markers, rep = 5, nrows = 20000)
+res.corr.bortolomeazzi <- lapply(bortolomeazzi_subsets, kmeansRun, markers = bortolomeazzi_markers, 
+                            distmet = 'pearson') %>% bind_rows()
+res.prox.bortolomeazzi <- lapply(bortolomeazzi_subsets, kmeansRun, markers = bortolomeazzi_markers, 
+                            distmet = 'euclidean') %>% bind_rows()
+
+res.bortolomeazzi <- rbind(res.corr.bortolomeazzi, res.prox.bortolomeazzi)
+res.bortolomeazzi$Dataset <- rep('Bortolomeazzi et al', nrow(res.bortolomeazzi))
+```
+
+# Brbic2022 - Intestine
+# Get data and extract markers
+```{r}
+brbic_int_dat <- fread('~/Documents/PhD/Spatial_Clustering/CODEX_Intestine_Tonsil_Brbic2022/B004_training_dryad.csv') %>% 
+  as.data.frame()
+
+# get markers, assume they use all for clustering
+brbic_int_markers <- colnames(brbic_int_dat)[2:49]
+
+# add the celltype information
+names(brbic_int_dat)[names(brbic_int_dat) == 'cell_type_A'] <- 'CellType'
+```
+
+```{r}
+brbic_int_subsets <- subsetMatrix(brbic_int_dat, markers = brbic_int_markers, rep = 5, nrows = 20000)
+res.corr.brbic_int <- lapply(brbic_int_subsets, kmeansRun, markers = brbic_int_markers, 
+                            distmet = 'pearson') %>% bind_rows()
+res.prox.brbic_int <- lapply(brbic_int_subsets, kmeansRun, markers = brbic_int_markers, 
+                            distmet = 'euclidean') %>% bind_rows()
+
+res.brbic_int <- rbind(res.corr.brbic_int, res.prox.brbic_int)
+res.brbic_int$Dataset <- rep('Brbic et al intestine', nrow(res.brbic_int))
+```
+
+
+# Brbic2022 - Tonsil
+# Get data and extract markers
+```{r}
+brbic_tons_dat <- fread('~/Documents/PhD/Spatial_Clustering/CODEX_Intestine_Tonsil_Brbic2022/BE_Tonsil_l3_dryad.csv') %>% 
+  as.data.frame()
+
+# get markers, assume they use all for clustering
+brbic_tons_markers <- colnames(brbic_tons_dat)[2:45]
+
+# add the celltype information
+names(brbic_tons_dat)[names(brbic_tons_dat) == 'cell_type'] <- 'CellType'
+```
+
+```{r}
+brbic_tons_subsets <- subsetMatrix(brbic_tons_dat, markers = brbic_tons_markers, rep = 5, nrows = 20000)
+res.corr.brbic_tons <- lapply(brbic_tons_subsets, kmeansRun, markers = brbic_tons_markers, 
+                            distmet = 'pearson') %>% bind_rows()
+res.prox.brbic_tons <- lapply(brbic_tons_subsets, kmeansRun, markers = brbic_tons_markers, 
+                            distmet = 'euclidean') %>% bind_rows()
+
+res.brbic_tons <- rbind(res.corr.brbic_tons, res.prox.brbic_tons)
+res.brbic_tons$Dataset <- rep('Brbic et al tonsil', nrow(res.brbic_tons))
+```
+
+
+
+# combine the results
+```{r}
+res.combined <- rbind(res.maldegem, res.rendeiro, res.risom, res.damond,
+                      res.hoch, res.moldoveanu,res.keren, res.liu, res.mccaferry, 
+                      res.schurch,res.phillips, res.lohoff, res.bortolomeazzi,
+                      res.brbic_int, res.brbic_tons)
+
+# write.csv(res.combined, '~/Documents/PhD/Spatial_Clustering/clustering/kmeans_analysis_results_all_20k.csv')
+
+res.combined <- read.csv('~/Documents/PhD/Spatial_Clustering/clustering/kmeans_analysis_results_all_20k.csv')
+res.combined <- res.combined[, -1]
+colnames(res.combined)[[3]] <- "FM-Index"
+
+
+res.combined$Metric <- dplyr::recode(res.combined$Metric, 'pearson' = 'Pearson', 'euclidean' = 'Euclidean')
+
+# colnames(res.combined)[[3]] <- "FM-Index" 
+
+res.combined <- res.combined %>% 
+  group_by(Metric, Dataset) %>% 
+  summarise(ARI = mean(ARI), NMI = mean(NMI), `FM-Index` = mean(`FM-Index`), FMeasure = mean(FMeasure))
+
+# res.combined<- read.csv('~/Documents/PhD/Spatial_Clustering/clustering/hclust_analysis_results_all_20k.csv')
+# colnames(res.combined)[[3]] <- "FM-Index"
+
+res.combined.melted <- melt(res.combined, id.vars = c('Metric', 'Dataset'))
+
+res.combined.melted$Metric <- factor(res.combined.melted$Metric, levels = c("Pearson", "Euclidean"))
+
+```
+
+# Generate bar plot
+```{r}
+p.bar.kmeans <- ggplot(res.combined.melted, aes(x = Dataset, y = value, fill = Metric)) +
+  geom_bar(stat = "identity", position = position_dodge(), alpha = 1) +
+  ylim(0, 1) + facet_wrap(~variable) + theme_bw() +
+  ylab("Score") + theme(legend.position  = 'None',
+      plot.title = element_text(color="Black", size=25, face="bold", hjust = 0.5),
+      plot.subtitle = element_text(color = "red", size = 25, hjust = 0.5),
+      axis.title.x = element_text(color="Black", size=25),
+      axis.title.y = element_text(color="Black", size=25),
+      axis.text.y = element_text(size = 25),
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 25),
+      strip.text.x = element_text(size = 25),
+      legend.title = element_text(size = 25),
+      legend.text = element_text(size = 25)
+    ) + scale_fill_jama() + ggtitle('K-means')
+```
+
+```{r}
+# res.combined$Type <- if_else(res.combined$Metric %in% c('euclidean','manhattan', 'maximum', 'minkowski'), 'Distance', 'Correlation')
+
+t <- res.combined %>% 
+  group_by(Metric,Dataset) %>% 
+  summarise(ARI=ave(ARI), NMI=ave(NMI), `FM-Index`=ave(`FM-Index`),
+            FMeasure=ave(FMeasure)) %>% unique()
+names(t)[names(t) == 'Metric'] <- 'Distance'
+
+t$Distance <- factor(t$Distance, levels = c("pearson", "spearman",
+                                            "cosine", "euclidean",
+                                            "manhattan", "maximum"))
+
+
+p.bar.ari <- ggplot(t, aes(x=Dataset, y=ARI, fill=Distance)) + 
+  geom_bar(stat = 'identity', position = position_dodge(), alpha = 1) + 
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 12),
+        axis.text.y = element_text(size = 12),
+        plot.title = element_text(color="Black", size=12,hjust = 0.5)) + 
+  labs(title = "ARI", x = "", y = "") + scale_fill_carto_d(name = "Distance: ", palette = "Safe")
+
+p.bar.nmi <- ggplot(t, aes(x=Dataset, y=NMI, fill=Distance)) + 
+  geom_bar(stat = 'identity', position = position_dodge(), alpha = 0.75) + 
+  theme_bw() + theme(legend.position="none") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 12),
+        axis.ticks.y = element_blank(),
+        axis.text.y = element_blank(),
+        plot.title = element_text(color="Black", size=11,hjust = 0.5)) + 
+  labs(title = "NMI", x = "", y = "") + scale_fill_carto_d(name = "Distance: ", palette = "Safe")
+
+p.bar.fm <- ggplot(t, aes(x=Dataset, y=`FM-Index`, fill=Distance)) + 
+  geom_bar(stat = 'identity', position = position_dodge(), alpha = 0.75) + 
+  theme_bw() +theme(legend.position="none") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 12),
+        axis.ticks.y = element_blank(),
+        axis.text.y = element_blank(),
+        plot.title = element_text(color="Black", size=11,hjust = 0.5)) + 
+  labs(title = "FM-Index", x = "", y = "")  + scale_fill_carto_d(name = "Distance: ", palette = "Safe")
+
+p.bar.fmeasure <- ggplot(t, aes(x=Dataset, y=FMeasure, fill=Distance)) + 
+  geom_bar(stat = 'identity', position = position_dodge(), alpha = 0.75) + 
+  theme_bw() + theme(legend.position="none") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 12),
+        axis.ticks.y = element_blank(),
+        axis.text.y = element_blank(),
+        plot.title = element_text(color="Black", size=11,hjust = 0.5)) + 
+  labs(title = "Fmeasure", x = "", y = "") + scale_fill_carto_d(name = "Distance: ", palette = "Safe")
+```
+
+# generate bubble plot
+```{r}
+# get ranking of values
+t.melted <- melt(t, id.vars = c('Distance', 'Dataset'))
+ranked.data <- t.melted %>% group_by(variable, Dataset) %>% 
+  summarise(Distance=Distance, Dataset=Dataset, Score=value, Rank = rank(value))
+
+ranked.data$Rank <- as.factor(ranked.data$Rank)
+
+# ranked.data$Distance <- factor(ranked.data$Distance, levels = c("pearson", "spearman",
+#                                                                 "cosine", "euclidean",
+#                                                                 "manhattan", "maximum"))
+
+# ARI
+# h.ari <-  ggplot(ranked.data[which(ranked.data$variable %like% 'ARI'), ], 
+#                  aes(x = Dataset, y = Distance)) + 
+#   geom_point(aes(size = Rank, color = Rank), alpha = 0.75) + 
+#   labs( x= "", y = "", size = "", fill = "") +
+#   theme(
+#       axis.title.x = element_text(color="Black", size=12, face="bold"),
+#       axis.text.y = element_text(vjust = 0.5, hjust=1, 
+#                                  size = 12, color="Black"),
+#       panel.background = element_blank(),
+#       axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 12)
+#     ) + scale_color_startrek()
+
+
+p.bubble <- ggplot(ranked.data, aes(x = Dataset, y = Distance)) +
+  geom_point(aes(size=Rank, color=Rank), alpha=1) +
+  facet_wrap(~variable) + 
+  labs( x= "", y = "") +
+  theme(
+      axis.title.x = element_text(color="Black", size=12, face="bold"),
+      axis.text.y = element_text(vjust = 0.5, hjust=1, 
+                                 size = 12, color="Black"),
+      panel.background = element_blank(),
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 12)
+    ) + scale_color_futurama()
+
+# NMI
+# h.nmi <-  ggplot(ranked.data[which(ranked.data$variable %like% 'NMI'), ], 
+#                  aes(x = Dataset, y = Distance)) + 
+#   geom_point(aes(size = Rank, color = Rank), alpha = 0.75) + 
+#   labs( x= "", y = "", size = "", fill = "") +
+#   theme(
+#       axis.title.x = element_text(color="Black", size=12, face="bold"),
+#       axis.text.y = element_text(vjust = 0.5, hjust=1, 
+#                                  size = 12, color="Black"),
+#       axis.ticks.x = element_blank(),
+#         axis.text.x = element_blank(),
+#       panel.background = element_blank(),
+#       legend.position = "None"
+#     ) + scale_color_startrek()
+# 
+# # FM-Index
+# h.fm <-  ggplot(ranked.data[which(ranked.data$variable %like% 'FM-Index'), ], 
+#                  aes(x = Dataset, y = Distance)) + 
+#   geom_point(aes(size = Rank, color = Rank), alpha = 0.75) + 
+#   labs( x= "", y = "", size = "", fill = "") +
+#   theme(
+#       axis.title.x = element_text(color="Black", size=12, face="bold"),
+#       axis.text.y = element_text(vjust = 0.5, hjust=1, 
+#                                  size = 12, color="Black"),
+#       axis.ticks.x = element_blank(),
+#         axis.text.x = element_blank(),
+#       panel.background = element_blank(),
+#       legend.position = "None"
+#     ) + scale_color_startrek()
+# 
+# # FMeasure
+# h.fmeasure <-  ggplot(ranked.data[which(ranked.data$variable %like% 'FMeasure'), ], 
+#                  aes(x = Dataset, y = Distance)) + 
+#   geom_point(aes(size = Rank, color = Rank), alpha = 0.75) + 
+#   labs( x= "", y = "", size = "", fill = "") +
+#   theme(
+#       axis.title.x = element_text(color="Black", size=12, face="bold"),
+#       axis.text.y = element_text(vjust = 0.5, hjust=1, 
+#                                  size = 12,color="Black"),
+#       axis.ticks.x = element_blank(),
+#         axis.text.x = element_blank(),
+#       panel.background = element_blank(),
+#       legend.position = "None"
+#     ) + scale_color_startrek()
+
+```
+
+```{r}
+p.ari.final <- plot_grid(h.ari, p.bar.ari, align = "v", nrow = 2, rel_heights = c(1/4, 3/4))
+p.nmi.final <- plot_grid(h.nmi, p.bar.nmi, align = "v", nrow = 2, rel_heights = c(1/4, 3/4))
+p.fm.final <- plot_grid(h.fm, p.bar.fm, align = "v", nrow = 2, rel_heights = c(1/4, 3/4))
+p.fmeasure.final <- plot_grid(h.fmeasure, p.bar.fmeasure, align = "v", nrow = 2, rel_heights = c(1/4, 3/4))
+
+p.final.all <- plot_grid(p.ari.final, p.nmi.final, p.fm.final,p.fmeasure.final)
+p.final.h <- plot_grid(h.ari, h.nmi, h.fm, h.fmeasure)
+```
+
+
+
+```{r}
+met.rank <- data.frame(ARI=as.numeric(ranked.data[which(ranked.data$variable %like% 'ARI'), ]$Rank),
+                       NMI=as.numeric(ranked.data[which(ranked.data$variable %like% 'NMI'), ]$Rank),
+                       `FM-Index`=as.numeric(ranked.data[which(ranked.data$variable %like% 'FM-Index'), ]$Rank),
+                       FMeasure=as.numeric(ranked.data[which(ranked.data$variable %like% 'FMeasure'), ]$Rank))
+
+met.rank.cor <- cor(met.rank, method = 'spearman')
+
+# corrplot(met.rank.cor, addCoef.col = 'black', )
+
+p.corr <- ggcorrmat(
+  data     = met.rank,
+  matrix.type = 'full', 
+  ggcorrplot.args = c(method = 'square'),
+  type = 'non', 
+  title  = "Concordance of rankings",
+  colors   = c("#4D4D4D","white","#B2182B")
+) + 
+  theme_bw() + 
+  theme(plot.title = element_text(color="Black", size=12,hjust = 0.5)) +
+  labs( x= "", y = "", size = "")
+```
+
+
+
+# Generate paired t-test
+```{r}
+t$Type <- if_else(t$Distance %in% c('euclidean','manhattan', 'maximum', 'minkowski'), 'Distance', 'Correlation')
+
+t.melted <- melt(t, id.vars=c('Distance','Dataset', 'Type'))
+names(t.melted)[names(t.melted) == 'value'] <- 'Score'
+
+p.paired <- grouped_ggbetweenstats(
+  data             = t.melted,
+  plot.type        = 'box',
+  pairwise.comparisons = F,
+  x                = Type,
+  y                = Score,
+  grouping.var     = variable,
+  outlier.tagging  = F,
+  palette          = "uniform_startrek",
+  package          = "ggsci",
+  plotgrid.args    = list(nrow = 2),
+  annotation.args  = list(title = ""),
+  results.subtitle = F,
+  centrality.plotting = F
+)
+```
+
+```{r}
+# t <- res.mccaferry %>% 
+#   group_by(Metric) %>% 
+#   summarise(ARI=ave(ARI), NMI=ave(NMI), `FM-Index`=ave(`FM-Index`),
+#             FMeasure=ave(FMeasure)) %>% unique()
+
+nb.cols <- 16
+mycolors <- colorRampPalette(brewer.pal(12, "Set3"))(nb.cols)
+mycolors_new <- paletteer_d("ggsci::category20b_d3")
+
+# generate UMAP
+res <- mccaferry_dat[, mccaferry_markers] %>% umap()
+
+umap_df <- res$layout %>%
+  as.data.frame()
+colnames(umap_df) <- c('UMAP_1', 'UMAP_2')
+
+CellType <- mccaferry_dat$CellType
+
+gc()
+p.orig <- ggplot(umap_df, aes(x=UMAP_1, y=UMAP_2)) + geom_point(aes(color=CellType)) + 
+  theme_bw() + 
+  ggtitle("Annotated cells (Mccaferry et al)") +
+  theme(plot.title = element_text(color="Black", size=11,hjust = 0.5)) + 
+  scale_color_manual(values = mycolors_new)
+  
+# cluster the dataset using the six metrics
+dat <- mccaferry_dat[, mccaferry_markers]
+
+k = length(unique(mccaferry_dat$CellType))
+
+# pearson
+d.pear <- cor2dist(cor(t(dat)))
+gc()
+pear.clusts <- cutree(fastcluster::hclust(as.dist(d.pear), method = 'complete'), k)
+pear.clusts <- as.factor(pear.clusts)
+pear.metrics <- ComputeMetrics(mccaferry_dat$CellType, pear.clusts)
+p.pear <- ggplot(umap_df, aes(x=UMAP_1, y=UMAP_2)) + geom_point(aes(color=pear.clusts)) + 
+  theme_bw() + theme(legend.position="none") + 
+  ggtitle("Hierarchical clustering using Pearson \nARI=0.22; NMI=0.28; FM-Index=0.33; FMeasure=0.46") + 
+  theme(plot.title = element_text(color="Black", size=11,hjust = 0.5)) + 
+  scale_color_manual(values = mycolors)
+rm(d.pear)
+gc()
+
+# spearman
+d.spear <- cor2dist(cor(t(dat), method = 'spearman'))
+gc()
+spear.clusts <- cutree(hclust(as.dist(d.spear), method = 'complete'), k)
+spear.clusts <- as.factor(spear.clusts)
+spear.metrics <- ComputeMetrics(mccaferry_dat$CellType, spear.clusts)
+p.spear <- ggplot(umap_df, aes(x=UMAP_1, y=UMAP_2)) + geom_point(aes(color=spear.clusts)) + 
+  theme_bw() + theme(legend.position="none") + 
+  ggtitle("Hierarchical clustering using Spearman \nARI=0.15; NMI=0.23; FM-Index=0.29; FMeasure=0.41") + 
+  theme(plot.title = element_text(color="Black", size=11,hjust = 0.5)) +
+  scale_color_manual(values = mycolors)
+rm(d.spear)
+gc()
+
+# cosine
+d.cos <- cor2dist(coop::tcosine(dat))
+gc()
+cos.clusts <- cutree(hclust(as.dist(d.cos), method = 'complete'), k)
+cos.clusts <- as.factor(cos.clusts)
+cos.metrics <- ComputeMetrics(mccaferry_dat$CellType, cos.clusts)
+p.cos <- ggplot(umap_df, aes(x=UMAP_1, y=UMAP_2)) + geom_point(aes(color=cos.clusts)) + 
+  theme_bw() + theme(legend.position="none") + 
+  ggtitle("Hierarchical clustering using Cosine \nARI=0.10; NMI=0.23; FM-Index=0.27; FMeasure=0.37") + 
+  theme(plot.title = element_text(color="Black", size=11,hjust = 0.5)) + 
+  scale_color_manual(values = mycolors)
+rm(d.cos)
+gc()
+
+# euclidean
+d.eucl <- parallelDist(as.matrix(dat))
+eucl.clusts <- cutree(fastcluster::hclust(d.eucl, method = 'complete'), k)
+eucl.clusts <- as.factor(eucl.clusts)
+eucl.metrics <- ComputeMetrics(mccaferry_dat$CellType, eucl.clusts)
+p.eucl <- ggplot(umap_df, aes(x=UMAP_1, y=UMAP_2)) + geom_point(aes(color=eucl.clusts)) + 
+  theme_bw() + theme(legend.position="none") + 
+  ggtitle("Hierarchical clustering using Euclidean \nARI=0.11; NMI=0.18; FM-Index=0.29; FMeasure=0.36") + 
+  theme(plot.title = element_text(color="Black", size=11,hjust = 0.5)) + 
+  scale_color_manual(values = mycolors)
+ 
+# manhattan
+d.man <- parallelDist(as.matrix(dat), method = 'manhattan')
+man.clusts <- cutree(fastcluster::hclust(d.man, method = 'complete'), k)
+man.clusts <- as.factor(man.clusts)
+man.metrics <- ComputeMetrics(mccaferry_dat$CellType, man.clusts)
+p.man <- ggplot(umap_df, aes(x=UMAP_1, y=UMAP_2)) + geom_point(aes(color=man.clusts)) + 
+  theme_bw() + theme(legend.position="none") + 
+  ggtitle("Hierarchical clustering using Manhattan \nARI=0.10; NMI=0.21; FM-Index=0.22; FMeasure=0.33") + 
+  theme(plot.title = element_text(color="Black", size=11,hjust = 0.5)) + 
+  scale_color_manual(values = mycolors)
+
+# maximum
+d.max <- parallelDist(as.matrix(dat), method = 'maximum')
+max.clusts <- cutree(fastcluster::hclust(d.max, method = 'complete'), k)
+max.clusts <- as.factor(max.clusts)
+max.metrics <- ComputeMetrics(mccaferry_dat$CellType, max.clusts)
+p.max <- ggplot(umap_df, aes(x=UMAP_1, y=UMAP_2)) + geom_point(aes(color=max.clusts)) + 
+  theme_bw() + theme(legend.position="none") + 
+  ggtitle("Hierarchical clustering using Maximum \nARI=0.01; NMI=0.03; FM-Index=0.33; FMeasure=0.31") + 
+  theme(plot.title = element_text(color="Black", size=11,hjust = 0.5)) + 
+  scale_color_manual(values = mycolors)
+```
+
+```{r}
+p.final <- cowplot::plot_grid(p.pear,p.cos, p.spear, p.eucl, p.man, p.max)
+```
+

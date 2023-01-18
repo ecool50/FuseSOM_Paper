@@ -1,0 +1,498 @@
+---
+title: "Phenograph Analysis"
+output: html_document
+date: '2022-08-18'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+rm(list = ls())
+gc()
+library(tidyverse)
+library(ggplot2)
+library(psych)
+library(analogue)
+library(amap)
+library(data.table)
+library(DiffCorr)
+library(FlowSOM)
+library(multisom)
+library(EmbedSOM)
+library(coop)
+library(miceadds)
+library(trqwe)
+library(ggstatsplot)
+library(ggsci)
+library(rcartocolor)
+library(parallelDist)
+library(parallel)
+# library(imcdatasets)
+source.all('~/Documents/PhD/Spatial_Clustering/clustering/scripts//')
+```
+
+Proximity metric: Euclidean, Manhattan
+Correlation metric: Pearson, Cosine
+
+```{r}
+prox_metric <- c('euclidean')
+corr_metric <- c('correlation')
+```
+
+Dataset: Maldegem 
+```{r}
+maldegem_dat <- as.data.frame(fread(
+  '~/Documents/PhD/Spatial_Clustering/Maldegem2021_LungCancer_IMC/Maldegem2021_processed.csv'))
+
+# remove the unclassified cell types
+# maldegem_dat <- maldegem_dat[maldegem_dat$clustername3 != 'Unclassified', ]
+
+# rename the cluster column
+names(maldegem_dat)[names(maldegem_dat) == 'clustername3'] <- 'CellType'
+
+maldegem_markers <- colnames(maldegem_dat)[1:17]
+```
+
+```{r}
+maldegem_subsets <- subsetMatrix(maldegem_dat, markers = maldegem_markers, rep = 5, nrows = 20000)
+res.corr.maldegem <- lapply(maldegem_subsets, run_pheno, markers = maldegem_markers, 
+                              metric = 'correlation') %>% bind_rows()
+res.prox.maldegem <- lapply(maldegem_subsets, run_pheno, markers = maldegem_markers, 
+                            metric = 'euclidean') %>% bind_rows()
+res.maldegem <- rbind(res.corr.maldegem, res.prox.maldegem)
+res.maldegem$Dataset <- rep('Maldegem et al', nrow(res.maldegem))
+```
+
+# Rendeiro2020
+## Read in the data and set markers
+```{r}
+rendeiro_dat <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Rendeiro2020_Covid_IMC/Rendeiro2020_Covid_IMC_intensities.csv',
+             nThread = 32))
+
+# get the metadata
+rendeiro_meta <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Rendeiro2020_Covid_IMC/Rendeiro2020_Covid_IMC_metadata.csv',
+             nThread = 32))
+
+# extract the markers of interest and add the cluster labels and image metatdata
+rendeiro_markers <- colnames(rendeiro_dat)[1:38]
+rendeiro_dat <- rendeiro_dat[, rendeiro_markers]
+
+# combine the metadata with the intensities and umap coordinates
+rendeiro_dat <- cbind(rendeiro_dat, cbind(rendeiro_meta))
+
+names(rendeiro_dat)[names(rendeiro_dat) == 'metacluster_label'] <- 'CellType'
+rendeiro_dat <- rendeiro_dat[rendeiro_dat$CellType != "nan", ]
+```
+
+```{r}
+rendeiro_subsets <- subsetMatrix(rendeiro_dat, markers = rendeiro_markers, rep = 5, nrows = 20000)
+res.corr.rendeiro <- lapply(rendeiro_subsets, run_pheno, markers = rendeiro_markers, 
+                              metric = 'correlation') %>% bind_rows()
+res.prox.rendeiro <- lapply(rendeiro_subsets, run_pheno, markers = rendeiro_markers, 
+                              metric = 'euclidean') %>% bind_rows()
+res.rendeiro <- rbind(res.corr.rendeiro, res.prox.rendeiro)
+res.rendeiro$Dataset <- rep('Rendeiro et al', nrow(res.rendeiro))
+```
+
+
+# Risom2022
+## Read in data and set markers
+```{r}
+risom_dat <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Risom2022_BreastCancer_IMC/Single_Cell_Data.csv')
+)
+
+risom_markers <- c('CD45','SMA','CK7','CK5','VIM','CD31','PanKRT','ECAD',
+                   'Tryptase','MPO','CD20','CD3','CD8','CD4','CD14','CD68','FAP',
+                   'CD36','CD11c','HLADRDPDQ','P63','CD44')
+
+names(risom_dat)[names(risom_dat) == 'manual_gating_phenotype'] <- 'CellType'
+```
+
+
+```{r}
+
+risom_subsets <- subsetMatrix(risom_dat, markers = risom_markers, rep = 5, nrows = 20000)
+res.corr.risom <- lapply(risom_subsets, run_pheno, markers = risom_markers, 
+                              metric = 'correlation') %>% bind_rows()
+res.prox.risom <- lapply(risom_subsets, run_pheno, markers = risom_markers, 
+                              metric = 'euclidean') %>% bind_rows()
+res.risom <- rbind(res.corr.risom, res.prox.risom)
+res.risom$Dataset <- rep('Risom et al', nrow(res.risom))
+```
+
+# Damond2019 
+# Read in data and set markers
+```{r}
+damond_dat <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Damond2019_Diabetes_IMC/Damond2010_Diabetes_IMC_celldata.csv')
+)
+
+
+# get the markers of interest
+damond_markers <- colnames(damond_dat)
+damond_markers <- damond_markers[1:36]
+```
+
+```{r}
+damond_subsets <- subsetMatrix(damond_dat, markers = damond_markers, rep = 5, nrows = 20000)
+res.corr.damond <- lapply(damond_subsets, run_pheno, markers = damond_markers, 
+                              metric = 'correlation') %>% bind_rows()
+res.prox.damond <- lapply(damond_subsets, run_pheno, markers = damond_markers, 
+                              metric = 'euclidean') %>% bind_rows()
+res.damond <- rbind(res.corr.damond, res.prox.damond)
+res.damond$Dataset <- rep('Damond et al', nrow(res.damond))
+```
+
+# Moldoveanu2022
+## read in data and set markers
+```{r}
+moldoveanu_dat <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Moldoveanu20222_Melanoma_IMC/data/ICI_meanIntensity_processed.csv')
+)
+
+moldoveanu_dat_non_ICI <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Moldoveanu20222_Melanoma_IMC/non-ICI_meanIntensity_processed.csv')
+)
+
+
+moldoveanu_metadata <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Moldoveanu20222_Melanoma_IMC/ST4_cell_data.txt')
+)
+
+# combine both datasets
+moldoveanu_dat <- rbind(moldoveanu_dat, moldoveanu_dat_non_ICI)
+
+# order by object ID
+moldoveanu_dat <- moldoveanu_dat[match(moldoveanu_metadata$obj.id, moldoveanu_dat$obj.id), ]
+
+# get markers
+moldoveanu_markers <- colnames(moldoveanu_dat)[1:12]
+
+# add celltypes
+moldoveanu_dat$CellType <- moldoveanu_metadata$Cluster
+```
+
+```{r}
+moldoveanu_subsets <- subsetMatrix(moldoveanu_dat, markers = moldoveanu_markers, rep = 5, nrows = 20000)
+res.corr.moldoveanu <- lapply(moldoveanu_subsets, run_pheno, markers = moldoveanu_markers, 
+                              metric = 'correlation') %>% bind_rows()
+res.prox.moldoveanu <- lapply(moldoveanu_subsets, run_pheno, markers = moldoveanu_markers, 
+                              metric = 'euclidean') %>% bind_rows()
+res.moldoveanu <- rbind(res.corr.moldoveanu, res.prox.moldoveanu)
+res.moldoveanu$Dataset <- rep('Moldoveanu et al', nrow(res.moldoveanu))
+```
+
+# Hoch 2022
+## read in data and set markers
+```{r}
+# read in the data
+hoch_dat <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Hoch2022_Melanoma_IMC/hoch2022_Melanoma_counts.csv', 
+                  nThread = 32)
+)
+# get markers of interest
+hoch_markers <- colnames(hoch_dat)[1:41]
+```
+
+```{r}
+hoch_subsets <- subsetMatrix(hoch_dat, markers = hoch_markers, rep = 5, nrows = 20000)
+res.corr.hoch <- lapply(hoch_subsets, run_pheno, markers = hoch_markers, 
+                          metric = 'correlation') %>% bind_rows()
+res.prox.hoch <- lapply(hoch_subsets, run_pheno, markers = hoch_markers, 
+                          metric = 'euclidean') %>% bind_rows()
+
+res.hoch <- rbind(res.corr.hoch, res.prox.hoch)
+res.hoch$Dataset <- rep('Hoch et al', nrow(res.hoch))
+```
+
+# Keren2018
+## Read in data set markers
+```{r}
+keren_dat <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Keren2018_BreastCancer_IMC/cellData.csv'))
+
+# set markers
+keren_markers <- c('CD45', 'FoxP3', 'CD4', 'CD8', 'CD3', 'CD20', 'CD16', 'CD68', 
+                   'MPO', 'HLA-DR', 'Pan-Keratin', 'Keratin17', 'Keratin6', 'p53', 
+                   'Beta catenin', 'EGFR')
+# set the cell types
+names(keren_dat)[names(keren_dat) == 'Group'] <- 'CellType'
+```
+
+## Run clustering
+```{r}
+keren_subsets <- subsetMatrix(keren_dat, markers = keren_markers, rep = 5, nrows = 20000)
+res.corr.keren <- lapply(keren_subsets, run_pheno, markers = keren_markers, 
+                          metric = 'correlation') %>% bind_rows()
+res.prox.keren <- lapply(keren_subsets, run_pheno, markers = keren_markers, 
+                          metric = 'euclidean') %>% bind_rows()
+
+res.keren <- rbind(res.corr.keren, res.prox.keren)
+res.keren$Dataset <- rep('Keren et al', nrow(res.keren))
+```
+
+# McCaffery2022
+# load data and get markers
+```{r}
+# read in the data
+mccaferry_dat <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/McCaffery2022_Tuberculosis_IMC/allTB-ME_annotated.csv')
+)
+# get the markers
+mccaferry_markers <- colnames(mccaferry_dat)[6:42]
+
+# set the cell types
+names(mccaferry_dat)[names(mccaferry_dat) == 'cell_type'] <- 'CellType'
+
+mccaferry_dat <- subset(mccaferry_dat,
+                        select = c(mccaferry_markers, 'CellType'))
+
+# remove rows with NAs
+mccaferry_dat <- na.omit(mccaferry_dat)
+```
+
+```{r}
+mccaferry_subsets <- subsetMatrix(mccaferry_dat, markers = mccaferry_markers, rep = 5, nrows = 20000)
+res.corr.mccaferry <- lapply(mccaferry_subsets, run_pheno, markers = mccaferry_markers, 
+                               metric = 'correlation') %>% bind_rows()
+res.prox.mccaferry <- lapply(mccaferry_subsets, run_pheno, markers = mccaferry_markers, 
+                               metric = 'euclidean') %>% bind_rows()
+
+res.mccaferry <- rbind(res.corr.mccaferry, res.prox.mccaferry)
+res.mccaferry$Dataset <- rep('Mccaferry et al', nrow(res.mccaferry))
+```
+
+## Liu2022
+# Get data and extract markers
+```{r}
+liu_dat <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Liu2022_Benchmarking_IMC/cell_table_size_normalized_clusters.csv')
+)
+
+liu_markers <- c('CD3', 'CD4', 'CD8', 'CD11c', 'CD20', 'CD31', 'CD45', 'CD56', 
+                 'CD68', 'PANCK', 'PAX5','Vimentin')
+
+# define cell types
+
+names(liu_dat)[names(liu_dat) == 'phenotype'] <- 'CellType'
+```
+
+
+```{r}
+liu_subsets <- subsetMatrix(liu_dat, markers = liu_markers, rep = 5, nrows = 20000)
+res.corr.liu <- lapply(liu_subsets, run_pheno, markers = liu_markers, 
+                         metric = 'correlation') %>% bind_rows()
+res.prox.liu <- lapply(liu_subsets, run_pheno, markers = liu_markers, 
+                         metric = 'euclidean') %>% bind_rows()
+
+res.liu <- rbind(res.corr.liu, res.prox.liu)
+res.liu$Dataset <- rep('Liu et al', nrow(res.liu))
+```
+
+
+## Schurch2020
+# Get data and extract markers
+```{r}
+schurch_dat <- read_csv("~/Documents/PhD/Spatial_Clustering/CODEX_Colon_Schurch2020/CRC_clusters_neighborhoods_markers.csv") %>%
+    select(-1) %>% 
+    janitor::clean_names() %>% 
+  as.data.frame() 
+
+lev <- unique(schurch_dat$cluster_name)
+schurch_dat$CellType <- factor(schurch_dat$cluster_name, levels = lev, labels = janitor::make_clean_names(lev))
+
+# get the markers
+schurch_markers <- colnames(schurch_dat)[12:60]
+```
+
+```{r}
+schurch_subsets <- subsetMatrix(schurch_dat, markers = schurch_markers, rep = 5, nrows = 20000)
+res.corr.schurch <- lapply(schurch_subsets, run_pheno, markers = schurch_markers, 
+                             metric = 'correlation') %>% bind_rows()
+res.prox.schurch <- lapply(schurch_subsets, run_pheno, markers = schurch_markers, 
+                             metric = 'euclidean') %>% bind_rows()
+res.schurch <- rbind(res.corr.schurch, res.prox.schurch)
+res.schurch$Dataset <- rep('Schurch et al', nrow(res.schurch))
+```
+
+## Phillips2021
+# Get data and extract markers
+```{r}
+phillips_dat <- read_csv("~/Documents/PhD/Spatial_Clustering/Phillips2021_Lymphoma_CODEX/Raw_df_CODEX.csv") %>%
+    janitor::clean_names() %>% 
+  as.data.frame() 
+
+lev <- unique(phillips_dat$cluster_name)
+phillips_dat$CellType <- factor(phillips_dat$cluster_name, levels = lev, labels = janitor::make_clean_names(lev))
+
+phillips_dat <- phillips_dat[ , -which(names(phillips_dat) %in% 
+                                         c('cd11b','cd16','cd164','ccr4','ccr6',
+                                      'egfr', 'p53'))]
+
+
+# get the markers
+phillips_markers <- colnames(phillips_dat)[10:61]
+```
+
+```{r}
+phillips_subsets <- subsetMatrix(phillips_dat, markers = phillips_markers, rep = 5, nrows = 20000)
+res.corr.phillips <- lapply(phillips_subsets, run_pheno, markers = phillips_markers, 
+                            metric = 'correlation') %>% bind_rows()
+res.prox.phillips <- lapply(phillips_subsets, run_pheno, markers = phillips_markers, 
+                            metric = 'euclidean') %>% bind_rows()
+
+res.phillips <- rbind(res.corr.phillips, res.prox.phillips)
+res.phillips$Dataset <- rep('Phillips et al', nrow(res.phillips))
+```
+
+## Lohoff2022
+# Get data and extract markers
+```{r}
+lohoff_dat <- as.data.frame(as.matrix(t(readRDS('~/Documents/PhD/Spatial_Clustering/Lohoff2022_Mouse_seqFISH/exprs.Rds'))))
+lohoff_metadata <- as.data.frame(readRDS('~/Documents/PhD/Spatial_Clustering/Lohoff2022_Mouse_seqFISH/metadata.Rds'))
+
+# remove Xist from columns
+lohoff_dat <- lohoff_dat[, -which(colnames(lohoff_dat) %in% 'Xist')]
+
+# get the top 50 pcs
+lohoff_pcs <- as.data.frame(gmodels::fast.prcomp(t(lohoff_dat), center = F)$rotation[, 1:50])
+
+# add the celltype information
+lohoff_pcs$CellType <- lohoff_metadata$celltype_mapped_refined
+
+lohoff_markers <- colnames(lohoff_pcs)[1:50]
+
+```
+
+```{r}
+lohoff_subsets <- subsetMatrix(lohoff_pcs, markers = lohoff_markers, rep = 5, nrows = 20000)
+res.corr.lohoff <- lapply(lohoff_subsets, run_pheno, markers = lohoff_markers, 
+                            metric = 'correlation') %>% bind_rows()
+res.prox.lohoff <- lapply(lohoff_subsets, run_pheno, markers = lohoff_markers, 
+                            metric = 'euclidean') %>% bind_rows()
+
+res.lohoff <- rbind(res.corr.lohoff, res.prox.lohoff)
+res.lohoff$Dataset <- rep('Lohoff et al', nrow(res.lohoff))
+```
+
+# Bortolomeazzi2020
+# Get data and extract markers
+```{r}
+bortolomeazzi_dat <- fread('~/Documents/PhD/Spatial_Clustering/IMC_ColorectalCancer_Bortolomeazzi2020/Single_Cell_Data.csv') %>% 
+  as.data.frame()
+
+# get markers, assume they use all for clustering
+bortolomeazzi_markers <- colnames(bortolomeazzi_dat)[16:45]
+
+# add the celltype information
+names(bortolomeazzi_dat)[names(bortolomeazzi_dat) == 'Population'] <- 'CellType'
+```
+
+```{r}
+bortolomeazzi_subsets <- subsetMatrix(bortolomeazzi_dat, markers = bortolomeazzi_markers,  rep = 5, nrows = 20000)
+res.corr.bortolomeazzi <- lapply(bortolomeazzi_subsets, run_pheno, markers = bortolomeazzi_markers, 
+                            metric = 'correlation') %>% bind_rows()
+res.prox.bortolomeazzi <- lapply(bortolomeazzi_subsets, run_pheno, markers = bortolomeazzi_markers, 
+                            metric = 'euclidean') %>% bind_rows()
+
+res.bortolomeazzi <- rbind(res.corr.bortolomeazzi, res.prox.bortolomeazzi)
+res.bortolomeazzi$Dataset <- rep('Bortolomeazzi et al', nrow(res.bortolomeazzi))
+```
+
+# Brbic2022 - Intestine
+# Get data and extract markers
+```{r}
+brbic_int_dat <- fread('~/Documents/PhD/Spatial_Clustering/CODEX_Intestine_Tonsil_Brbic2022/B004_training_dryad.csv') %>% 
+  as.data.frame()
+
+# get markers, assume they use all for clustering
+brbic_int_markers <- colnames(brbic_int_dat)[2:49]
+
+# add the celltype information
+names(brbic_int_dat)[names(brbic_int_dat) == 'cell_type_A'] <- 'CellType'
+```
+
+```{r}
+brbic_int_subsets <- subsetMatrix(brbic_int_dat, markers = brbic_int_markers, rep = 5, nrows = 20000)
+res.corr.brbic_int <- lapply(brbic_int_subsets, run_pheno, markers = brbic_int_markers, 
+                            metric = 'correlation') %>% bind_rows()
+res.prox.brbic_int <- lapply(brbic_int_subsets, run_pheno, markers = brbic_int_markers, 
+                            metric = 'euclidean') %>% bind_rows()
+
+res.brbic_int <- rbind(res.corr.brbic_int, res.prox.brbic_int)
+res.brbic_int$Dataset <- rep('Brbic et al intestine', nrow(res.brbic_int))
+```
+
+# Brbic2022 - Tonsil
+# Get data and extract markers
+```{r}
+brbic_tons_dat <- fread('~/Documents/PhD/Spatial_Clustering/CODEX_Intestine_Tonsil_Brbic2022/BE_Tonsil_l3_dryad.csv') %>% 
+  as.data.frame()
+
+# get markers, assume they use all for clustering
+brbic_tons_markers <- colnames(brbic_tons_dat)[2:45]
+
+# add the celltype information
+names(brbic_tons_dat)[names(brbic_tons_dat) == 'cell_type'] <- 'CellType'
+```
+
+```{r}
+brbic_tons_subsets <- subsetMatrix(brbic_tons_dat, markers = brbic_tons_markers, rep = 5, nrows = 20000)
+res.corr.brbic_tons <- lapply(brbic_tons_subsets, run_pheno, markers = brbic_tons_markers, 
+                            metric = 'correlation') %>% bind_rows()
+res.prox.brbic_tons <- lapply(brbic_tons_subsets, run_pheno, markers = brbic_tons_markers, 
+                            metric = 'euclidean') %>% bind_rows()
+
+res.brbic_tons <- rbind(res.corr.brbic_tons, res.prox.brbic_tons)
+res.brbic_tons$Dataset <- rep('Brbic et al tonsil', nrow(res.brbic_tons))
+```
+
+# combine the results
+```{r}
+res.combined <- rbind(res.maldegem, res.rendeiro, res.risom, res.damond,
+                      res.hoch, res.moldoveanu,res.keren, res.liu, res.mccaferry, 
+                      res.schurch,res.phillips, res.lohoff, res.bortolomeazzi,
+                      res.brbic_int, res.brbic_tons)
+
+# write.csv(res.combined, '~/Documents/PhD/Spatial_Clustering/clustering/phenograph_analysis_results_all_20k.csv',
+#           row.names = F)
+
+res.combined<- read.csv('~/Documents/PhD/Spatial_Clustering/clustering/phenograph_analysis_results_all_20k.csv')
+colnames(res.combined)[[3]] <- "FM-Index"
+
+res.combined <- res.combined %>% 
+  group_by(Metric, Dataset) %>% 
+  summarise(ARI = mean(ARI), NMI = mean(NMI), `FM-Index` = mean(`FM-Index`), FMeasure = mean(FMeasure))
+
+
+
+res.combined.melted <- melt(res.combined, id.vars = c('Metric', 'Dataset'))
+
+res.combined.melted$Metric <- factor(res.combined.melted$Metric, levels = c("correlation", "euclidean"))
+
+
+```
+
+# Generate bar plot
+```{r}
+p.bar.pheno <- ggplot(res.combined.melted, aes(x = Dataset, y = value, fill = Metric)) +
+  geom_bar(stat = "identity", position = position_dodge(), alpha = 0.75) +
+  ylim(0, 1) + facet_wrap(~variable) + theme_bw() +
+  ylab("Score") + theme(
+      legend.position  = 'None',
+      plot.title = element_text(color="Black", size=20, face="bold", hjust = 0.5),
+      plot.subtitle = element_text(color = "red", size = 20, hjust = 0.5),
+      axis.title.x = element_text(color="Black", size=20),
+      axis.title.y = element_text(color="Black", size=20),
+      axis.text.y = element_text(size = 20),
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 20),
+      strip.text.x = element_text(size = 20)
+    ) + scale_fill_jama() + ggtitle('PhenoGraph')
+```
+
+

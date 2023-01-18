@@ -1,0 +1,641 @@
+---
+title: "Pipeline Analysis Full"
+output: html_document
+date: '2022-08-17'
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+rm(list = ls())
+gc()
+library(tidyverse)  # data manipulation
+library(ggplot2)
+library(data.table)
+# library(rnndescent)
+# library(imcdatasets)
+library(flowAssist)
+library(FlowSOM)
+library(Rcpp)
+library(parallel)
+library(dplyr)
+library(psych)
+library(analogue)
+library(ggstatsplot)
+library(ggsci)
+library(rcartocolor)
+library(FuseSOM)
+set.seed(1994)
+library(miceadds)
+source.all('/home/ewillie/Documents/PhD/Spatial_Clustering/clustering/scripts/')
+```
+
+# Maldegem2021
+## read in the data and get markers of interest
+```{r}
+maldegem_dat <- as.data.frame(fread(
+  '~/Documents/PhD/Spatial_Clustering/Maldegem2021_LungCancer_IMC/Maldegem2021_processed.csv'))
+
+# remove the unclassified cell types
+# maldegem_dat <- maldegem_dat[maldegem_dat$clustername3 != 'Unclassified', ]
+
+# rename the cluster column
+names(maldegem_dat)[names(maldegem_dat) == 'clustername3'] <- 'CellType'
+
+maldegem_markers <- colnames(maldegem_dat)[1:17]
+
+res.malde.full <- RunPipelineFull(maldegem_dat, maldegem_markers)
+# get the mean values
+res.malde.full <- setDT(res.malde.full)[,list(ARI=mean(ARI), NMI=mean(NMI),
+                                              `FM-Index`=mean(`FM-Index`), FMeasure = mean(FMeasure)),
+                              by=c('Method')]
+res.malde.full$Dataset <- rep('Maldegem et al', 2)
+
+rm(maldegem_dat)
+gc()
+```
+
+# Rendeiro2020
+## Read in the data and set markers
+```{r}
+rendeiro_dat <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Rendeiro2020_Covid_IMC/Rendeiro2020_Covid_IMC_intensities.csv',
+             nThread = 32))
+
+# get the metadata
+rendeiro_meta <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Rendeiro2020_Covid_IMC/Rendeiro2020_Covid_IMC_metadata.csv',
+             nThread = 32))
+
+# extract the markers of interest and add the cluster labels and image metatdata
+rendeiro_markers <- colnames(rendeiro_dat)[1:38]
+rendeiro_dat <- rendeiro_dat[, rendeiro_markers]
+
+# combine the metadata with the intensities and umap coordinates
+rendeiro_dat <- cbind(rendeiro_dat, cbind(rendeiro_meta))
+
+names(rendeiro_dat)[names(rendeiro_dat) == 'metacluster_label'] <- 'CellType'
+rendeiro_dat <- rendeiro_dat[rendeiro_dat$CellType != "nan", ]
+
+res.ren.full <- RunPipelineFull(rendeiro_dat, rendeiro_markers)
+# get the mean values
+res.ren.full <- setDT(res.ren.full)[,list(ARI=mean(ARI), NMI=mean(NMI), `FM-Index`=mean(`FM-Index`), FMeasure = mean(FMeasure)),
+                              by=c('Method')]
+res.ren.full$Dataset <- rep('Rendeiro et al', 2)
+
+rm(rendeiro_dat)
+gc()
+```
+
+# Risom2022
+## Read in data and set markers
+```{r}
+risom_dat <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Risom2022_BreastCancer_IMC/Single_Cell_Data.csv')
+)
+
+risom_markers <- c('CD45','SMA','CK7','CK5','VIM','CD31','PanKRT','ECAD',
+                   'Tryptase','MPO','CD20','CD3','CD8','CD4','CD14','CD68','FAP',
+                   'CD36','CD11c','HLADRDPDQ','P63','CD44')
+
+names(risom_dat)[names(risom_dat) == 'manual_gating_phenotype'] <- 'CellType'
+
+res.risom.full <- RunPipelineFull(risom_dat, risom_markers)
+# get the mean values
+res.risom.full <- setDT(res.risom.full)[,list(ARI=mean(ARI), NMI=mean(NMI), `FM-Index`=mean(`FM-Index`), FMeasure = mean(FMeasure)),
+                              by=c('Method')]
+res.risom.full$Dataset <- rep('Risom et al', 2)
+
+rm(risom_dat)
+gc()
+```
+
+# Damond2019 
+# Read in data and set markers
+```{r}
+damond_dat <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Damond2019_Diabetes_IMC/Damond2010_Diabetes_IMC_celldata.csv')
+)
+
+
+# get the markers of interest
+damond_markers <- colnames(damond_dat)
+damond_markers <- damond_markers[1:36]
+
+res.damond.full <- RunPipelineFull(damond_dat, damond_markers)
+# get the mean values
+res.damond.full <- setDT(res.damond.full)[,list(ARI=mean(ARI), NMI=mean(NMI), `FM-Index`=mean(`FM-Index`), FMeasure = mean(FMeasure)),
+                              by=c('Method')]
+res.damond.full$Dataset <- rep('Damond et al', 2)
+
+rm(damond_dat)
+gc()
+```
+
+# Jackson2020
+## Read in data and load markers
+```{r}
+# # get the normalized data
+# jackson_sce <- imcdatasets::JacksonFischer2020Data(data_type = "sce")
+# jackson_dat <- as.data.frame(t(jackson_sce@assays@data$counts))
+# 
+# # add celltypes to counts data
+# jackson_dat$CellType <- colData(jackson_sce)$metacluster
+# 
+# # exclude channels from publication
+# channel_exclude = c("ImageId" ,"CellId" ,"In115 115InIn115Di","Xe134 134XeXe134Di","Hg202 202HgHg202Di","Pb204 204PbPb204Di","Pb206 206PbPb206Di","ArAr80 80ArArArAr80Di","phospho Erk12", "10311239Ru96Di Rutheni","10311240Ru98Di Rutheni","10311241Ru99Di Rutheni", "10311242Ru100Di Rutheni","10311243Ru101Di Rutheni", "10311244Ru102Di Rutheni","10311245Ru104Di Rutheni","Xe126 126XeXe126Di","I127 127II127Di","Xe131 131XeXe131Di","Pb207 207PbPb207Di","Pb208 208PbPb208Di","EulerNumber","MajorAxisLength","MinorAxisLength", "Orientation","10331253Ir191Di Iridium","2971330Dy161Di EpCAM","Perimeter","1971527Ho165Di bCaten","483739Yb171Di Sox9","Solidity")
+# 
+# good_channels = unique(colnames(jackson_dat))[!unique(colnames(jackson_dat)) %in% channel_exclude]
+# 
+# jackson_dat <- jackson_dat[, good_channels]
+# 
+# # get the markers of interest
+# jackson_markers <- good_channels[1:34]
+# 
+# res.jackson.full <- RunPipelineFull(jackson_dat, jackson_markers)
+# # get the mean values
+# res.jackson.full <- setDT(res.jackson.full)[,list(ARI=mean(ARI), NMI=mean(NMI), `FM-Index`=mean(`FM-Index`), FMeasure = mean(FMeasure)),
+#                               by=c('Method')]
+# res.jackson.full$Dataset <- rep('Jackson et al', 2)
+# 
+# rm(jackson_dat)
+# gc()
+```
+
+# Moldoveanu2022
+## read in data and set markers
+```{r}
+moldoveanu_dat <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Moldoveanu20222_Melanoma_IMC/data/ICI_meanIntensity_processed.csv')
+)
+
+moldoveanu_dat_non_ICI <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Moldoveanu20222_Melanoma_IMC/non-ICI_meanIntensity_processed.csv')
+)
+
+
+moldoveanu_metadata <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Moldoveanu20222_Melanoma_IMC/ST4_cell_data.txt')
+)
+
+# combine both datasets
+moldoveanu_dat <- rbind(moldoveanu_dat, moldoveanu_dat_non_ICI)
+
+# order by object ID
+moldoveanu_dat <- moldoveanu_dat[match(moldoveanu_metadata$obj.id, moldoveanu_dat$obj.id), ]
+
+# get markers
+moldoveanu_markers <- colnames(moldoveanu_dat)[1:12]
+
+# add celltypes
+moldoveanu_dat$CellType <- moldoveanu_metadata$Cluster
+
+res.moldoveanu.full <- RunPipelineFull(moldoveanu_dat, moldoveanu_markers)
+# get the mean values
+res.moldoveanu.full <- setDT(res.moldoveanu.full)[,list(ARI=mean(ARI), NMI=mean(NMI), `FM-Index`=mean(`FM-Index`), FMeasure = mean(FMeasure)),
+                              by=c('Method')]
+res.moldoveanu.full$Dataset <- rep('Moldoveanu et al', 2)
+
+rm(moldoveanu_dat)
+gc()
+```
+
+# Hoch 2022
+## read in data and set markers
+```{r}
+# read in the data
+hoch_dat <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Hoch2022_Melanoma_IMC/hoch2022_Melanoma_counts.csv', 
+                  nThread = 7)
+)
+# get markers of interest
+hoch_markers <- colnames(hoch_dat)[1:41]
+
+res.hoch.full <- RunPipelineFull(hoch_dat, hoch_markers)
+# get the mean values
+res.hoch.full <- setDT(res.hoch.full)[,list(ARI=mean(ARI), NMI=mean(NMI), `FM-Index`=mean(`FM-Index`), FMeasure = mean(FMeasure)),
+                              by=c('Method')]
+res.hoch.full$Dataset <- rep('Hoch et al', 2)
+
+rm(hoch_dat)
+gc()
+```
+
+# Keren2018
+## Read in data set markers
+```{r}
+keren_dat <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Keren2018_BreastCancer_IMC/cellData.csv'))
+
+# set markers
+keren_markers <- c('CD45', 'FoxP3', 'CD4', 'CD8', 'CD3', 'CD20', 'CD16', 'CD68', 
+                   'MPO', 'HLA-DR', 'Pan-Keratin', 'Keratin17', 'Keratin6', 'p53', 
+                   'Beta catenin', 'EGFR')
+# set the cell types
+names(keren_dat)[names(keren_dat) == 'Group'] <- 'CellType'
+
+res.keren.full <- RunPipelineFull(keren_dat, keren_markers)
+# get the mean values
+res.keren.full <- setDT(res.keren.full)[,list(ARI=mean(ARI), NMI=mean(NMI), `FM-Index`=mean(`FM-Index`), FMeasure = mean(FMeasure)),
+                              by=c('Method')]
+res.keren.full$Dataset <- rep('Keren et al', 2)
+
+rm(keren_dat)
+gc()
+```
+
+
+# McCaffery2022
+# load data and get markers
+```{r}
+# read in the data
+mccaferry_dat <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/McCaffery2022_Tuberculosis_IMC/allTB-ME_annotated.csv')
+)
+# get the markers
+mccaferry_markers <- colnames(mccaferry_dat)[6:42]
+
+# set the cell types
+names(mccaferry_dat)[names(mccaferry_dat) == 'cell_type'] <- 'CellType'
+
+mccaferry_dat <- subset(mccaferry_dat,
+                        select = c(mccaferry_markers, 'CellType'))
+
+# remove rows with NAs
+mccaferry_dat <- na.omit(mccaferry_dat)
+
+res.mccaferry.full <- RunPipelineFull(mccaferry_dat, mccaferry_markers)
+# get the mean values
+res.mccaferry.full <- setDT(res.mccaferry.full)[,list(ARI=mean(ARI), NMI=mean(NMI), `FM-Index`=mean(`FM-Index`), FMeasure = mean(FMeasure)),
+                              by=c('Method')]
+
+res.mccaferry.full$Dataset <- rep('Mccaferry et al', 2)
+
+rm(mccaferry_dat)
+gc()
+```
+
+## Liu2022
+# Get data and extract markers
+```{r}
+liu_dat <- as.data.frame(
+  fread('~/Documents/PhD/Spatial_Clustering/Liu2022_Benchmarking_IMC/cell_table_size_normalized_clusters.csv')
+)
+
+liu_markers <- c('CD3', 'CD4', 'CD8', 'CD11c', 'CD20', 'CD31', 'CD45', 'CD56', 
+                 'CD68', 'PANCK', 'PAX5','Vimentin')
+
+# define cell types
+
+names(liu_dat)[names(liu_dat) == 'phenotype'] <- 'CellType'
+
+res.liu.full <- RunPipelineFull(liu_dat, liu_markers)
+# get the mean values
+res.liu.full <- setDT(res.liu.full)[,list(ARI=mean(ARI), NMI=mean(NMI), `FM-Index`=mean(`FM-Index`), FMeasure = mean(FMeasure)),
+                              by=c('Method')]
+
+res.liu.full$Dataset <- rep('Liu et al', 2)
+
+rm(liu_dat)
+gc()
+```
+
+## Schurch2020
+# Get data and extract markers
+```{r}
+schurch_dat <- read_csv("~/Documents/PhD/Spatial_Clustering/CODEX_Colon_Schurch2020/CRC_clusters_neighborhoods_markers.csv") %>%
+    select(-1) %>% 
+    janitor::clean_names() %>% 
+  as.data.frame() 
+
+lev <- unique(schurch_dat$cluster_name)
+schurch_dat$CellType <- factor(schurch_dat$cluster_name, levels = lev, labels = janitor::make_clean_names(lev))
+
+# get the markers
+schurch_markers <- colnames(schurch_dat)[12:60]
+
+res.schurch.full <- RunPipelineFull(schurch_dat, schurch_markers)
+# get the mean values
+res.schurch.full <- setDT(res.schurch.full)[,list(ARI=mean(ARI), NMI=mean(NMI), `FM-Index`=mean(`FM-Index`), FMeasure = mean(FMeasure)),
+                              by=c('Method')]
+
+res.schurch.full$Dataset <- rep('Schurch et al', 2)
+
+rm(schurch_dat)
+gc()
+```
+
+## Phillips2021
+# Get data and extract markers
+```{r}
+phillips_dat <- read_csv("~/Documents/PhD/Spatial_Clustering/Phillips2021_Lymphoma_CODEX/Raw_df_CODEX.csv") %>%
+    janitor::clean_names() %>% 
+  as.data.frame() 
+
+lev <- unique(phillips_dat$cluster_name)
+phillips_dat$CellType <- factor(phillips_dat$cluster_name, levels = lev, labels = janitor::make_clean_names(lev))
+
+phillips_dat <- phillips_dat[ , -which(names(phillips_dat) %in% 
+                                         c('cd11b','cd16','cd164','ccr4','ccr6',
+                                      'egfr', 'p53'))]
+
+
+# get the markers
+phillips_markers <- colnames(phillips_dat)[10:61]
+
+res.phillips.full <- RunPipelineFull(phillips_dat, phillips_markers)
+# get the mean values
+res.phillips.full <- setDT(res.phillips.full)[,list(ARI=mean(ARI), NMI=mean(NMI), `FM-Index`=mean(`FM-Index`), FMeasure = mean(FMeasure)),
+                              by=c('Method')]
+res.phillips.full$Dataset <- rep('Phillips et al', 2)
+
+rm(phillips_dat)
+gc()
+```
+
+## Lohoff2022
+# Get data and extract markers
+```{r}
+lohoff_dat <- as.data.frame(as.matrix(t(readRDS('~/Documents/PhD/Spatial_Clustering/Lohoff2022_Mouse_seqFISH/exprs.Rds'))))
+lohoff_metadata <- as.data.frame(readRDS('~/Documents/PhD/Spatial_Clustering/Lohoff2022_Mouse_seqFISH/metadata.Rds'))
+
+# remove Xist from columns
+lohoff_dat <- lohoff_dat[, -which(colnames(lohoff_dat) %in% 'Xist')]
+
+# get the top 50 pcs
+lohoff_pcs <- as.data.frame(gmodels::fast.prcomp(t(lohoff_dat), center = F)$rotation[, 1:50])
+
+# add the celltype information
+lohoff_pcs$CellType <- lohoff_metadata$celltype_mapped_refined
+
+lohoff_markers <- colnames(lohoff_pcs)[1:50]
+
+res.lohoff.full <- RunPipelineFull(lohoff_pcs, lohoff_markers)
+# get the mean values
+res.lohoff.full <- setDT(res.lohoff.full)[,list(ARI=mean(ARI), NMI=mean(NMI),
+                                                    `FM-Index`=mean(`FM-Index`), FMeasure = mean(FMeasure)),
+                              by=c('Method')]
+res.lohoff.full$Dataset <- rep('Lohoff et al', 2)
+
+rm(lohoff_dat)
+gc()
+```
+
+# Bortolomeazzi2020
+# Get data and extract markers
+```{r}
+bortolomeazzi_dat <- fread('~/Documents/PhD/Spatial_Clustering/IMC_ColorectalCancer_Bortolomeazzi2020/Single_Cell_Data.csv') %>% 
+  as.data.frame()
+
+# get markers, assume they use all for clustering
+bortolomeazzi_markers <- colnames(bortolomeazzi_dat)[16:45]
+
+# add the celltype information
+names(bortolomeazzi_dat)[names(bortolomeazzi_dat) == 'Population'] <- 'CellType'
+
+
+res.bortolomeazzi.full <- RunPipelineFull(bortolomeazzi_dat, bortolomeazzi_markers)
+# get the mean values
+res.bortolomeazzi.full <- setDT(res.bortolomeazzi.full)[,list(ARI=mean(ARI), NMI=mean(NMI),
+                                                    `FM-Index`=mean(`FM-Index`), FMeasure = mean(FMeasure)),
+                              by=c('Method')]
+res.bortolomeazzi.full$Dataset <- rep('Bortolomeazzi et al', 2)
+
+rm(bortolomeazzi_dat)
+gc()
+```
+
+# Brbic2022 - Intestine
+# Get data and extract markers
+```{r}
+brbic_int_dat <- fread('~/Documents/PhD/Spatial_Clustering/CODEX_Intestine_Tonsil_Brbic2022/B004_training_dryad.csv') %>% 
+  as.data.frame()
+
+# get markers, assume they use all for clustering
+brbic_int_markers <- colnames(brbic_int_dat)[2:49]
+
+# add the celltype information
+names(brbic_int_dat)[names(brbic_int_dat) == 'cell_type_A'] <- 'CellType'
+
+res.brbic_int.full <- RunPipelineFull(brbic_int_dat, brbic_int_markers)
+# get the mean values
+res.brbic_int.full <- setDT(res.brbic_int.full)[,list(ARI=mean(ARI), NMI=mean(NMI),
+                                                    `FM-Index`=mean(`FM-Index`), FMeasure = mean(FMeasure)),  
+                                                by=c('Method')]
+res.brbic_int.full$Dataset <- rep('Brbic et al intestine', 2)
+
+rm(brbic_int_dat)
+gc()
+```
+
+# Brbic2022 - Tonsil
+# Get data and extract markers
+```{r}
+brbic_tons_dat <- fread('~/Documents/PhD/Spatial_Clustering/CODEX_Intestine_Tonsil_Brbic2022/BE_Tonsil_l3_dryad.csv') %>% 
+  as.data.frame()
+
+# get markers, assume they use all for clustering
+brbic_tons_markers <- colnames(brbic_tons_dat)[2:45]
+
+# add the celltype information
+names(brbic_tons_dat)[names(brbic_tons_dat) == 'cell_type'] <- 'CellType'
+
+res.brbic_tons.full <- RunPipelineFull(brbic_tons_dat, brbic_tons_markers)
+# get the mean values
+res.brbic_tons.full <- setDT(res.brbic_tons.full)[,list(ARI=mean(ARI), NMI=mean(NMI),
+                                                    `FM-Index`=mean(`FM-Index`), FMeasure = mean(FMeasure)),
+                              by=c('Method')]
+res.brbic_tons.full$Dataset <- rep('Brbic et al tonsil', 2)
+
+rm(brbic_tons_dat)
+gc()
+```
+
+```{r}
+res <- rbind(res.malde.full , res.ren.full, res.risom.full, res.damond.full, 
+             res.keren.full,
+             res.moldoveanu.full, res.liu.full, res.hoch.full, res.schurch.full, 
+             res.phillips.full, res.mccaferry.full, res.lohoff.full, res.bortolomeazzi.full,
+             res.brbic_int.full, res.brbic_tons.full) %>% as.data.frame()
+```
+
+
+```{r}
+# write.csv(res, '~/Documents/PhD/Spatial_Clustering/clustering/FuseSOM_vs_FlowSOM_correlation.csv',
+#           row.names = F)
+res <- read.csv('~/Documents/PhD/Spatial_Clustering/clustering/FuseSOM_vs_FlowSOM_Vanilla.csv')
+colnames(res)[[4]] <- 'FM-Index'
+
+res.melted <- melt(res)
+res.melted$Method <- factor(res.melted$Method, 
+                           levels = c('FuseSOM', 'FlowSOM'))
+
+p <- ggplot(res.melted, aes(x=Method, y=value)) + 
+  geom_boxplot(aes(fill = Method)) + 
+  facet_wrap(~variable) + 
+  labs(title = "", x = "", y = "Score") + 
+  theme_bw() + 
+  theme(axis.text.x = element_text(size = 20),
+        axis.text.y = element_text(size = 20),
+        axis.title.y = element_text(size = 20),
+        axis.title.x = element_text(size = 20),
+        strip.text.x = element_text(size = 20),
+        legend.text = element_text(size = 20),
+        legend.title = element_text(size = 20)) + 
+  scale_fill_startrek()
+```
+
+# generate paired t-test
+```{r}
+# p.sig <- grouped_ggwithinstats(
+#   data            = res.melted,
+#   x               = Method,
+#   y               = value,
+#   plot.type        = 'box',
+#   type            = "parametric",
+#   xlab            = "Method",
+#   ylab            = "Score",
+#   grouping.var    = variable,
+#   palette          = "default_jama",
+#   package          = "ggsci",
+#   pairwise.comparisons = T,
+#   results.subtitle = F,
+#   bf.message      = F,
+#   outlier.tagging = F,
+#   pairwise.display = 'all',
+#   centrality.plotting = F
+# 
+# ) + ## modifying the plot further
+#   ggplot2::scale_y_continuous(
+#     limits = c(0, 7),
+#   )
+
+p.sig.ari <- ggwithinstats(
+  data            = res,
+  x               = Method,
+  y               = ARI,
+  type            = "parametric",
+  xlab            = "",
+  ylab            = "ARI",
+  palette          = "uniform_startrek",
+  package          = "ggsci",
+  pairwise.comparisons = T,
+  results.subtitle = F,
+  bf.message      = F,
+  outlier.tagging = F,
+  pairwise.display = 'all',
+  centrality.plotting = F,
+  subtitle  = 'p = 0.000004'
+)  + theme(plot.subtitle = element_text(color = "black", size = 9, hjust = 0.5),
+           axis.text.x = element_text(size = 11))
+
+p.sig.nmi <- ggwithinstats(
+  data            = res,
+  x               = Method,
+  y               = NMI,
+  type            = "parametric",
+  xlab            = "",
+  ylab            = "NMI",
+  palette          = "uniform_startrek",
+  package          = "ggsci",
+  pairwise.comparisons = T,
+  results.subtitle = F,
+  bf.message      = F,
+  outlier.tagging = F,
+  pairwise.display = 'all',
+  centrality.plotting = F,
+  subtitle  = 'p = 0.00002'
+) + theme(plot.subtitle = element_text(color = "black", size = 9, hjust = 0.5),
+          axis.text.x = element_text(size = 11))
+
+p.sig.fm <- ggwithinstats(
+  data            = res,
+  x               = Method,
+  y               = `FM-Index`,
+  type            = "parametric",
+  xlab            = "",
+  ylab            = "FM-Index",
+  palette          = "uniform_startrek",
+  package          = "ggsci",
+  pairwise.comparisons = T,
+  results.subtitle = F,
+  bf.message      = F,
+  outlier.tagging = F,
+  pairwise.display = 'all',
+  centrality.plotting = F,
+  subtitle  = 'p = 0.002'
+) + theme(plot.subtitle = element_text(color = "black", size = 9, hjust = 0.5),
+          axis.text.x = element_text(size = 11))
+
+p.sig.fmeasure <- ggwithinstats(
+  data            = res,
+  x               = Method,
+  y               = `FMeasure`,
+  type            = "parametric",
+  xlab            = "",
+  ylab            = "FMeasure",
+  palette          = "uniform_startrek",
+  package          = "ggsci",
+  pairwise.comparisons = T,
+  results.subtitle = F,
+  bf.message      = F,
+  outlier.tagging = F,
+  pairwise.display = 'all',
+  centrality.plotting = F,
+  subtitle  = 'p = 0.01'
+)  + theme(plot.subtitle = element_text(color = "black", size = 9, hjust = 0.5),
+           axis.text.x = element_text(size = 11))
+```
+
+```{r}
+p.sig.final <- plot_grid(p.sig.ari, p.sig.nmi, p.sig.fm, p.sig.fmeasure)
+```
+
+
+# generate bar plot
+```{r}
+res$Method <- factor(res$Method, levels = c('FuseSOM', 'FlowSOM'))
+p.bar.ari <- ggplot(res, aes(x=Dataset, y=ARI, fill=Method)) + 
+  geom_bar(stat = 'identity', position = position_dodge(), alpha = 1) + 
+  theme_bw() + 
+  coord_flip() + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 20),
+        axis.text.y = element_text(size = 20),
+        plot.title = element_text(color="Black", size=25,hjust = 0.5),
+        legend.position = 'None') + 
+  labs(title = "ARI", x = "", y = "") + scale_fill_startrek()
+
+p.bar.nmi <- ggplot(res, aes(x=Dataset, y=NMI, fill=Method)) + 
+  geom_bar(stat = 'identity', position = position_dodge(), alpha = 1) + 
+  theme_bw() + theme(legend.position="none") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 20),
+        plot.title = element_text(color="Black", size=20,hjust = 0.5),
+        axis.text.y = element_text(size = 20)) + 
+  labs(title = "NMI", x = "", y = "") + 
+  coord_flip() + scale_fill_startrek()
+
+p.bar.fm <- ggplot(res, aes(x=Dataset, y=`FM-Index`, fill=Method)) + 
+  geom_bar(stat = 'identity', position = position_dodge(), alpha = 1) + 
+  theme_bw() + theme(legend.position="none") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 20),
+        plot.title = element_text(color="Black", size=20,hjust = 0.5),
+        axis.text.y = element_text(size = 20)) + 
+  labs(title = "FM-Index", x = "", y = "") + 
+  coord_flip() + scale_fill_startrek()
+
+p.bar.fmeasure <- ggplot(res, aes(x=Dataset, y=FMeasure, fill=Method)) + 
+  geom_bar(stat = 'identity', position = position_dodge(), alpha = 1) + 
+  theme_bw() + theme(legend.position="none") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 20),
+        plot.title = element_text(color="Black", size=20,hjust = 0.5),
+        axis.text.y = element_text(size = 20)) + 
+  labs(title = "Fmeasure", x = "", y = "") + 
+  coord_flip() + scale_fill_startrek()
+```
+
+```{r}
+p.bar.final <- plot_grid(p.bar.ari, p.bar.nmi, p.bar.fm, p.bar.fmeasure)
+```
+
