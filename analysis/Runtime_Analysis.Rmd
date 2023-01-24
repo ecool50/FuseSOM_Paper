@@ -15,8 +15,6 @@ gc()
 library(tidyverse)  # data manipulation
 library(ggplot2)
 library(data.table)
-# library(rnndescent)
-# library(imcdatasets)
 library(flowAssist)
 library(FlowSOM)
 library(Rcpp)
@@ -31,7 +29,7 @@ library(FuseSOM)
 set.seed(1994)
 library(miceadds)
 library("profmem")
-source.all('/home/ewillie/Documents/PhD/Spatial_Clustering/clustering/scripts/')
+source.all('/home/ewillie/Documents/PhD/Papers/FuseSOM_Paper/helper_scripts')
 ```
 
 
@@ -86,6 +84,7 @@ for(i in 1:length(vals)){
 }
 ```
 
+# input times based on for loop from previous chunk
 ```{r}
 res.times <- c(23, 45, 68, 114, 132, 168, 198, 251)
 ```

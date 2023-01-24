@@ -27,11 +27,9 @@ library(parallelDist)
 library(parallel)
 library(paletteer)
 library(FlowSOM)
-# library(imcdatasets)
-library(umap)
 library(RColorBrewer)
 library(flowAssist)
-source.all('/home/ewillie/Documents/PhD/Spatial_Clustering/clustering/scripts/')
+source.all('/home/ewillie/Documents/PhD/Papers/FuseSOM_Paper/helper_scripts')
 ```
 
 Proximity Metrics: Euclidean, Manhattan
@@ -42,7 +40,8 @@ prox_metrics <- 'euclidean'
 corr_metrics <- 'pearson'
 ```
 
-Dataset: Maldegem 
+# Maldegem2021
+## Read in the data and set markers
 ```{r}
 maldegem_dat <- as.data.frame(fread(
   '~/Documents/PhD/Spatial_Clustering/Maldegem2021_LungCancer_IMC/Maldegem2021_processed.csv'))
@@ -467,7 +466,9 @@ res.combined <- rbind(res.maldegem, res.rendeiro, res.risom, res.damond,
 # write.csv(res.combined, '~/Documents/PhD/Spatial_Clustering/clustering/flowsom_analysis_results_all_20k.csv',
 #           row.names = F)
 
-res.combined<- read.csv('~/Documents/PhD/Spatial_Clustering/clustering/flowsom_analysis_results_all_20k.csv')
+```
+```{r}
+res.combined<- read.csv('/home/ewillie/Documents/PhD/Papers/FuseSOM_Paper/result_data/flowsom_analysis_results_all_20k.csv')
 colnames(res.combined)[[3]] <- "FM-Index"
 
 res.combined <- res.combined %>% 
@@ -480,7 +481,6 @@ res.combined <- res.combined %>%
 res.combined.melted <- melt(res.combined, id.vars = c('Metric', 'Dataset'))
 
 res.combined.melted$Metric <- factor(res.combined.melted$Metric, levels = c("pearson", "euclidean"))
-
 ```
 
 # Generate bar plot
@@ -489,292 +489,14 @@ p.bar.flow <- ggplot(res.combined.melted, aes(x = Dataset, y = value, fill = Met
   geom_bar(stat = "identity", position = position_dodge(), alpha = 1) +
   ylim(0, 1) + facet_wrap(~variable) + theme_bw() +
   ylab("Score") + theme(
-      legend.position  = 'None',
       plot.title = element_text(color="Black", size=25, face="bold", hjust = 0.5),
       plot.subtitle = element_text(color = "red", size = 25, hjust = 0.5),
       axis.title.x = element_text(color="Black", size=25),
       axis.title.y = element_text(color="Black", size=25),
       axis.text.y = element_text(size = 25),
       axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 25),
-      strip.text.x = element_text(size = 25)
+      strip.text.x = element_text(size = 25),
+      legend.title = element_text(size=25), #change legend title font size
+      legend.text = element_text(size=25) #change legend text font size)
     ) + scale_fill_jama() + ggtitle('FlowSOM')
 ```
-
-```{r}
-# res.combined$Type <- if_else(res.combined$Metric %in% c('euclidean','manhattan', 'maximum', 'minkowski'), 'Distance', 'Correlation')
-
-t <- res.combined %>% 
-  group_by(Metric,Dataset) %>% 
-  summarise(ARI=ave(ARI), NMI=ave(NMI), `FM-Index`=ave(`FM-Index`),
-            FMeasure=ave(FMeasure)) %>% unique()
-names(t)[names(t) == 'Metric'] <- 'Distance'
-
-t$Distance <- factor(t$Distance, levels = c("pearson", "spearman",
-                                            "cosine", "euclidean",
-                                            "manhattan", "maximum"))
-
-
-p.bar.ari <- ggplot(t, aes(x=Dataset, y=ARI, fill=Distance)) + 
-  geom_bar(stat = 'identity', position = position_dodge(), alpha = 1) + 
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 12),
-        axis.text.y = element_text(size = 12),
-        plot.title = element_text(color="Black", size=12,hjust = 0.5)) + 
-  labs(title = "ARI", x = "", y = "") + scale_fill_carto_d(name = "Distance: ", palette = "Safe")
-
-p.bar.nmi <- ggplot(t, aes(x=Dataset, y=NMI, fill=Distance)) + 
-  geom_bar(stat = 'identity', position = position_dodge(), alpha = 0.75) + 
-  theme_bw() + theme(legend.position="none") + 
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 12),
-        axis.ticks.y = element_blank(),
-        axis.text.y = element_blank(),
-        plot.title = element_text(color="Black", size=11,hjust = 0.5)) + 
-  labs(title = "NMI", x = "", y = "") + scale_fill_carto_d(name = "Distance: ", palette = "Safe")
-
-p.bar.fm <- ggplot(t, aes(x=Dataset, y=`FM-Index`, fill=Distance)) + 
-  geom_bar(stat = 'identity', position = position_dodge(), alpha = 0.75) + 
-  theme_bw() +theme(legend.position="none") + 
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 12),
-        axis.ticks.y = element_blank(),
-        axis.text.y = element_blank(),
-        plot.title = element_text(color="Black", size=11,hjust = 0.5)) + 
-  labs(title = "FM-Index", x = "", y = "")  + scale_fill_carto_d(name = "Distance: ", palette = "Safe")
-
-p.bar.fmeasure <- ggplot(t, aes(x=Dataset, y=FMeasure, fill=Distance)) + 
-  geom_bar(stat = 'identity', position = position_dodge(), alpha = 0.75) + 
-  theme_bw() + theme(legend.position="none") + 
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 12),
-        axis.ticks.y = element_blank(),
-        axis.text.y = element_blank(),
-        plot.title = element_text(color="Black", size=11,hjust = 0.5)) + 
-  labs(title = "Fmeasure", x = "", y = "") + scale_fill_carto_d(name = "Distance: ", palette = "Safe")
-```
-
-# generate bubble plot
-```{r}
-# get ranking of values
-t.melted <- melt(t, id.vars = c('Distance', 'Dataset'))
-ranked.data <- t.melted %>% group_by(variable, Dataset) %>% 
-  summarise(Distance=Distance, Dataset=Dataset, Score=value, Rank = rank(value))
-
-ranked.data$Rank <- as.factor(ranked.data$Rank)
-
-ranked.data$Distance <- factor(ranked.data$Distance, levels = c("pearson", "spearman",
-                                                                "cosine", "euclidean",
-                                                                "manhattan", "maximum"))
-
-# ARI
-h.ari <-  ggplot(ranked.data[which(ranked.data$variable %like% 'ARI'), ], 
-                 aes(x = Dataset, y = Distance)) + 
-  geom_point(aes(size = Rank, color = Rank), alpha = 0.75) + 
-  labs( x= "", y = "", size = "", fill = "") +
-  theme(
-      axis.title.x = element_text(color="Black", size=12, face="bold"),
-      axis.text.y = element_text(vjust = 0.5, hjust=1, 
-                                 size = 12, color="Black"),
-      axis.ticks.x = element_blank(),
-        axis.text.x = element_blank(),
-      panel.background = element_blank(),
-      legend.position = "None"
-    ) + scale_color_futurama()
-
-# NMI
-h.nmi <-  ggplot(ranked.data[which(ranked.data$variable %like% 'NMI'), ], 
-                 aes(x = Dataset, y = Distance)) + 
-  geom_point(aes(size = Rank, color = Rank), alpha = 0.75) + 
-  labs( x= "", y = "", size = "", fill = "") +
-  theme(
-      axis.title.x = element_text(color="Black", size=12, face="bold"),
-      axis.text.y = element_text(vjust = 0.5, hjust=1, 
-                                 size = 12, color="Black"),
-      axis.ticks.x = element_blank(),
-        axis.text.x = element_blank(),
-      panel.background = element_blank(),
-      legend.position = "None"
-    ) + scale_color_futurama()
-
-# FM-Index
-h.fm <-  ggplot(ranked.data[which(ranked.data$variable %like% 'FM-Index'), ], 
-                 aes(x = Dataset, y = Distance)) + 
-  geom_point(aes(size = Rank, color = Rank), alpha = 0.75) + 
-  labs( x= "", y = "", size = "", fill = "") +
-  theme(
-      axis.title.x = element_text(color="Black", size=12, face="bold"),
-      axis.text.y = element_text(vjust = 0.5, hjust=1, 
-                                 size = 12, color="Black"),
-      axis.ticks.x = element_blank(),
-        axis.text.x = element_blank(),
-      panel.background = element_blank(),
-      legend.position = "None"
-    ) + scale_color_futurama()
-
-# FMeasure
-h.fmeasure <-  ggplot(ranked.data[which(ranked.data$variable %like% 'FMeasure'), ], 
-                 aes(x = Dataset, y = Distance)) + 
-  geom_point(aes(size = Rank, color = Rank), alpha = 0.75) + 
-  labs( x= "", y = "", size = "", fill = "") +
-  theme(
-      axis.title.x = element_text(color="Black", size=12, face="bold"),
-      axis.text.y = element_text(vjust = 0.5, hjust=1, 
-                                 size = 12,color="Black"),
-      axis.ticks.x = element_blank(),
-        axis.text.x = element_blank(),
-      panel.background = element_blank(),
-      legend.position = "None"
-    ) + scale_color_futurama()
-
-```
-
-```{r}
-p.ari.final <- plot_grid(h.ari, p.bar.ari, align = "v", nrow = 2, rel_heights = c(1/4, 3/4))
-p.nmi.final <- plot_grid(h.nmi, p.bar.nmi, align = "v", nrow = 2, rel_heights = c(1/4, 3/4))
-p.fm.final <- plot_grid(h.fm, p.bar.fm, align = "v", nrow = 2, rel_heights = c(1/4, 3/4))
-p.fmeasure.final <- plot_grid(h.fmeasure, p.bar.fmeasure, align = "v", nrow = 2, rel_heights = c(1/4, 3/4))
-```
-
-```{r}
-met.rank <- data.frame(ARI=as.numeric(ranked.data[which(ranked.data$variable %like% 'ARI'), ]$Rank),
-                       NMI=as.numeric(ranked.data[which(ranked.data$variable %like% 'NMI'), ]$Rank),
-                       `FM-Index`=as.numeric(ranked.data[which(ranked.data$variable %like% 'FM-Index'), ]$Rank),
-                       FMeasure=as.numeric(ranked.data[which(ranked.data$variable %like% 'FMeasure'), ]$Rank))
-
-met.rank.cor <- cor(met.rank, method = 'spearman')
-
-# corrplot(met.rank.cor, addCoef.col = 'black', )
-
-p.corr <- ggcorrmat(
-  data     = met.rank,
-  matrix.type = 'full', 
-  ggcorrplot.args = c(method = 'square'),
-  type = 'non', 
-  title  = "Concordance of rankings",
-  colors   = c("#4D4D4D","white","#B2182B")
-) + 
-  theme_bw() + 
-  theme(plot.title = element_text(color="Black", size=12,hjust = 0.5)) +
-  labs( x= "", y = "", size = "")
-```
-
-
-
-# Generate paired t-test
-```{r}
-t$Type <- if_else(t$Distance %in% c('euclidean','manhattan', 'maximum', 'minkowski'), 'Distance', 'Correlation')
-
-t.melted <- melt(t, id.vars=c('Distance','Dataset', 'Type'))
-names(t.melted)[names(t.melted) == 'value'] <- 'Score'
-
-p.paired <- grouped_ggbetweenstats(
-  data             = t.melted,
-  plot.type        = 'box',
-  pairwise.comparisons = F,
-  x                = Type,
-  y                = Score,
-  grouping.var     = variable,
-  outlier.tagging  = F,
-  palette          = "uniform_startrek",
-  package          = "ggsci",
-  plotgrid.args    = list(nrow = 2),
-  annotation.args  = list(title = ""),
-  results.subtitle = F,
-  centrality.plotting = F
-)
-```
-
-```{r}
-# t <- res.mccaferry %>% 
-#   group_by(Metric) %>% 
-#   summarise(ARI=ave(ARI), NMI=ave(NMI), `FM-Index`=ave(`FM-Index`),
-#             FMeasure=ave(FMeasure)) %>% unique()
-
-nb.cols <- 16
-mycolors <- colorRampPalette(brewer.pal(12, "Set3"))(nb.cols)
-
-# generate UMAP
-res <- mccaferry_dat[, mccaferry_markers] %>% umap()
-
-umap_df <- res$layout %>%
-  as.data.frame()
-colnames(umap_df) <- c('UMAP_1', 'UMAP_2')
-
-CellType <- mccaferry_dat$CellType
-
-
-p.orig <- ggplot(umap_df, aes(x=UMAP_1, y=UMAP_2)) + geom_point(aes(color=CellType)) + 
-  theme_bw() + 
-  ggtitle("Annotated cells (Mccaferry et al)") + 
-  theme(plot.title = element_text(color="Black", size=11,hjust = 0.5)) + 
-  scale_color_manual(values = mycolors)
-
-gc()
-# cluster the dataset using the six metrics
-dat <- mccaferry_dat[, mccaferry_markers]
-
-k = length(unique(mccaferry_dat$CellType))
-
-# pearson
-
-pear.clusts <- FloSOMRun(mccaferry_dat, distance = 'pearson', markers = mccaferry_markers)
-pear.metrics <- ComputeMetrics(mccaferry_dat$CellType, pear.clusts)
-p.pear <- ggplot(umap_df, aes(x=UMAP_1, y=UMAP_2)) + geom_point(aes(color=pear.clusts)) + 
-  theme_bw() + theme(legend.position="none") + 
-  ggtitle("FlowSOM clustering using Pearson \nARI=0.23; NMI=0.24; FM-Index=0.32; FMeasure=0.48") + 
-  theme(plot.title = element_text(color="Black", size=11,hjust = 0.5)) + 
-  scale_color_manual(values = mycolors)
-
-gc()
-# spearman
-spear.clusts <- FloSOMRun(mccaferry_dat, distance = 'spearman', markers = mccaferry_markers)
-spear.metrics <- ComputeMetrics(mccaferry_dat$CellType, spear.clusts)
-p.spear <- ggplot(umap_df, aes(x=UMAP_1, y=UMAP_2)) + geom_point(aes(color=spear.clusts)) + 
-  theme_bw() + theme(legend.position="none") + 
-  ggtitle("FlowSOM clustering using Spearman \nARI=0.19; NMI=0.32; FM-Index=0.30; FMeasure=0.46") + 
-  theme(plot.title = element_text(color="Black", size=11,hjust = 0.5)) +
-  scale_color_manual(values = mycolors)
-
-gc()
-# cosine
-cos.clusts <- FloSOMRun(mccaferry_dat, distance = 'cosine_dist', markers = mccaferry_markers)
-cos.metrics <- ComputeMetrics(mccaferry_dat$CellType, cos.clusts)
-p.cos <- ggplot(umap_df, aes(x=UMAP_1, y=UMAP_2)) + geom_point(aes(color=cos.clusts)) + 
-  theme_bw() + theme(legend.position="none") + 
-  ggtitle("FlowSOM clustering using Cosine \nARI=0.25; NMI=0.36; FM-Index=0.35; FMeasure=0.52") + 
-  theme(plot.title = element_text(color="Black", size=11,hjust = 0.5)) + 
-  scale_color_manual(values = mycolors)
-
-gc()
-# euclidean
-eucl.clusts <- FloSOMRun(mccaferry_dat, distance = 'euclidean', markers = mccaferry_markers)
-eucl.metrics <- ComputeMetrics(mccaferry_dat$CellType, eucl.clusts)
-p.eucl <- ggplot(umap_df, aes(x=UMAP_1, y=UMAP_2)) + geom_point(aes(color=eucl.clusts)) + 
-  theme_bw() + theme(legend.position="none") + 
-  ggtitle("FlowSOM clustering using Euclidean \nARI=0.24; NMI=0.39; FM-Index=0.32; FMeasure=0.46") + 
-  theme(plot.title = element_text(color="Black", size=11,hjust = 0.5)) + 
-  scale_color_manual(values = mycolors)
-
-gc()
-# manhattan
-man.clusts <- FloSOMRun(mccaferry_dat, distance = 'manhattan_dist', markers = mccaferry_markers)
-man.metrics <- ComputeMetrics(mccaferry_dat$CellType, man.clusts)
-p.man <- ggplot(umap_df, aes(x=UMAP_1, y=UMAP_2)) + geom_point(aes(color=man.clusts)) + 
-  theme_bw() + theme(legend.position="none") + 
-  ggtitle("FlowSOM clustering using Manhattan \nARI=0.18; NMI=0.33; FM-Index=0.28; FMeasure=0.42") + 
-  theme(plot.title = element_text(color="Black", size=11,hjust = 0.5)) + 
-  scale_color_manual(values = mycolors)
-
-gc()
-# maximum
-max.clusts <- FloSOMRun(mccaferry_dat, distance = 'maximum_dist', markers = mccaferry_markers)
-max.metrics <- ComputeMetrics(mccaferry_dat$CellType, max.clusts)
-p.max <- ggplot(umap_df, aes(x=UMAP_1, y=UMAP_2)) + geom_point(aes(color=max.clusts)) + 
-  theme_bw() + theme(legend.position="none") + 
-  ggtitle("FlowSOM clustering using Maximum \nARI=0.18; NMI=0.34; FM-Index=0.29; FMeasure=0.45") + 
-  theme(plot.title = element_text(color="Black", size=11,hjust = 0.5)) + 
-  scale_color_manual(values = mycolors)
-```
-
-```{r}
-p.final <- cowplot::plot_grid(p.pear,p.cos, p.spear, p.eucl, p.man, p.max,
-                   labels = c('A','B','C','D','E','F'))
-```
-

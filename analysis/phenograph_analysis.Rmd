@@ -19,8 +19,6 @@ library(amap)
 library(data.table)
 library(DiffCorr)
 library(FlowSOM)
-library(multisom)
-library(EmbedSOM)
 library(coop)
 library(miceadds)
 library(trqwe)
@@ -29,8 +27,7 @@ library(ggsci)
 library(rcartocolor)
 library(parallelDist)
 library(parallel)
-# library(imcdatasets)
-source.all('~/Documents/PhD/Spatial_Clustering/clustering/scripts//')
+source.all('/home/ewillie/Documents/PhD/Papers/FuseSOM_Paper/helper_scripts')
 ```
 
 Proximity metric: Euclidean, Manhattan
@@ -462,7 +459,10 @@ res.combined <- rbind(res.maldegem, res.rendeiro, res.risom, res.damond,
 # write.csv(res.combined, '~/Documents/PhD/Spatial_Clustering/clustering/phenograph_analysis_results_all_20k.csv',
 #           row.names = F)
 
-res.combined<- read.csv('~/Documents/PhD/Spatial_Clustering/clustering/phenograph_analysis_results_all_20k.csv')
+```
+
+```{r}
+res.combined<- read.csv('/home/ewillie/Documents/PhD/Papers/FuseSOM_Paper/result_data/phenograph_analysis_results_all_20k.csv')
 colnames(res.combined)[[3]] <- "FM-Index"
 
 res.combined <- res.combined %>% 
@@ -474,24 +474,24 @@ res.combined <- res.combined %>%
 res.combined.melted <- melt(res.combined, id.vars = c('Metric', 'Dataset'))
 
 res.combined.melted$Metric <- factor(res.combined.melted$Metric, levels = c("correlation", "euclidean"))
-
-
 ```
+
 
 # Generate bar plot
 ```{r}
 p.bar.pheno <- ggplot(res.combined.melted, aes(x = Dataset, y = value, fill = Metric)) +
-  geom_bar(stat = "identity", position = position_dodge(), alpha = 0.75) +
+  geom_bar(stat = "identity", position = position_dodge(), alpha = 1) +
   ylim(0, 1) + facet_wrap(~variable) + theme_bw() +
   ylab("Score") + theme(
-      legend.position  = 'None',
       plot.title = element_text(color="Black", size=20, face="bold", hjust = 0.5),
       plot.subtitle = element_text(color = "red", size = 20, hjust = 0.5),
       axis.title.x = element_text(color="Black", size=20),
       axis.title.y = element_text(color="Black", size=20),
       axis.text.y = element_text(size = 20),
       axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 20),
-      strip.text.x = element_text(size = 20)
+      strip.text.x = element_text(size = 20),
+      legend.title = element_text(size = 25),
+      legend.text = element_text(size = 25)
     ) + scale_fill_jama() + ggtitle('PhenoGraph')
 ```
 
