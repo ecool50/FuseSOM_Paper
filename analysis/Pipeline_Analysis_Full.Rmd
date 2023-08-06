@@ -28,6 +28,7 @@ library(FuseSOM)
 set.seed(1994)
 library(miceadds)
 library(cowplot)
+library(scDHA)
 source.all('/home/ewillie/Documents/PhD/Papers/FuseSOM_Paper/helper_scripts')
 ```
 
@@ -55,6 +56,18 @@ res.malde.full$Dataset <- rep('Maldegem et al', 2)
 rm(maldegem_dat)
 gc()
 ```
+
+
+```{r}
+#Generate clustering result, the input matrix has rows as samples and columns as genes
+result <- scDHA(as.matrix(maldegem_dat[, maldegem_markers]), 
+                seed = 1994, ncores = 20)
+
+#The clustering result can be found here 
+cluster <- result$cluster
+```
+
+
 
 # Rendeiro2020
 ## Read in the data and set markers

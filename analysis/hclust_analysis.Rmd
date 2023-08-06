@@ -550,7 +550,7 @@ p.bubble <- ggplot(ranked.data,
 
 ```
 
-# enerate umap plots
+# generate umap plots
 ```{r}
 set.seed(1994)
 nb.cols <- 16
