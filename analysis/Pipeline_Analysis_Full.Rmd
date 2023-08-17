@@ -448,8 +448,8 @@ res <- rbind(res.malde.full , res.ren.full, res.risom.full, res.damond.full,
 ```
 
 ```{r}
-res <- read.csv('/home/ewillie/Documents/PhD/Papers/FuseSOM_Paper/result_data/FuseSOM_vs_FlowSOM_Vanilla.csv')
-colnames(res)[[4]] <- 'FM-Index'
+res <- read.csv('~/Documents/PhD/Spatial_Clustering/clustering/FuseSOM_vs_FlowSOM_Vanilla_updated.csv',
+                check.names = FALSE)
 
 res.melted <- melt(res)
 res.melted$Method <- factor(res.melted$Method, 
