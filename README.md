@@ -18,3 +18,6 @@ Helper Scripts
 
 Results Data
 - This directory contains the result data from the analysis files which were used to generate figures in the manuscript.
+
+Access to raw csv data files
+- The raw csv data files have been upload to one drive and can be assessed using the this [link](https://unisydneyedu-my.sharepoint.com/:f:/g/personal/ewil3501_uni_sydney_edu_au/EtH1vOPBHixAqzmILnUSzBUBhiHVJYVP-0JGgT1UYG7Jog?e=EoNhRv)
