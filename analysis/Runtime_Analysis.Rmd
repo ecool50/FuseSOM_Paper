@@ -163,7 +163,7 @@ p.time <- profile_results %>%
         legend.text = element_text(size = 20),
         legend.title = element_text(size = 20),
         legend.position = "none") + 
-  scale_fill_startrek()
+  scale_color_jama()
 
 p.time
 ```
@@ -189,12 +189,12 @@ p.mem <- memory_results %>%
         strip.text.x = element_text(size = 20),
         legend.text = element_text(size = 20),
         legend.title = element_text(size = 20)) + 
-  scale_fill_startrek()
+  scale_color_jama()
 
 p.mem
 ```
 
 # Generate Figure S2
 ```{r,fig.height=6,fig.width=13}
-cowplot::plot_grid(p, p.mem, rel_widths = c(4/10, 6/10), labels = c('A', 'B'))
+cowplot::plot_grid(p.time, p.mem, rel_widths = c(4/10, 6/10), labels = c('A', 'B'))
 ```

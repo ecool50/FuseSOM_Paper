@@ -371,20 +371,20 @@ colnames(res.re) <- c('Dataset', 'Method', 'RE' ,'Relative-Error')
 
 p.RE <- ggpaired(res.re, x= 'Method', y = '`Relative-Error`',
                  fill = 'Method', add = 'jitter', palette = 'jama',
-                 point.size = 3) + 
+                 point.size = 1) + 
   labs(title="",
         x ="Cluster Estimation Method", y = "Relative Error") + theme_bw() +
   theme(
-      plot.title = element_text(color="Black", size=25, hjust = 0.5),
-      plot.subtitle = element_text(color = "red", size = 25, face = "bold", hjust = 0.5),
-      axis.title.x = element_text(color="Black", size=25),
-      axis.title.y = element_text(color="Black", size=25),
+      plot.title = element_text(color="Black", size=20, hjust = 0.5),
+      plot.subtitle = element_text(color = "red", size = 20, face = "bold", hjust = 0.5),
+      axis.title.x = element_text(color="Black", size=20),
+      axis.title.y = element_text(color="Black", size=20),
       axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 25),
-      axis.text.y = element_text(size = 25),
+      axis.text.y = element_text(size = 20),
       legend.position = "none"
       
     ) +
-  geom_hline(yintercept=0, linetype='dotted', col = 'red', linewidth = 2) 
+  geom_hline(yintercept=0, linetype='dotted', col = 'red', linewidth = 1) 
 
 p.RE
 ```
@@ -399,18 +399,19 @@ colnames(res.metrics) <- c('Dataset', 'Method', 'Metric' ,'Score')
 
 p.metrics <-ggpaired(res.metrics, x= 'Method', y = 'Score',
                  fill = 'Method', add = 'jitter', palette = 'jama',
-                 point.size = 3, facet.by = 'Metric') + 
+                 point.size = 1, facet.by = 'Metric') + 
   labs(title="",
         x ="Cluster Estimation Method", y = "Score") + theme_bw() +
   theme(
-      plot.title = element_text(color="Black", size=25, hjust = 0.5),
-      plot.subtitle = element_text(color = "red", size = 25, face = "bold", hjust = 0.5),
-      axis.title.x = element_text(color="Black", size=25),
-      axis.title.y = element_text(color="Black", size=25),
-      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 25),
-      axis.text.y = element_text(size = 25),
-      legend.text = element_text(size = 25),
-      legend.title = element_text(size = 25),
+      plot.title = element_text(color="Black", size=20, hjust = 0.5),
+      plot.subtitle = element_text(color = "red", size = 20, face = "bold", hjust = 0.5),
+      axis.title.x = element_text(color="Black", size=20),
+      axis.title.y = element_text(color="Black", size=20),
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 20),
+      axis.text.y = element_text(size = 20),
+      legend.text = element_text(size = 20),
+      legend.title = element_text(size = 20),
+      strip.text.x = element_text(size = 20, colour = 'black')
     )
 
 p.metrics
