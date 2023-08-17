@@ -447,7 +447,6 @@ res <- rbind(res.malde.full , res.ren.full, res.risom.full, res.damond.full,
 #           row.names = F)
 ```
 
-
 ```{r}
 res <- read.csv('/home/ewillie/Documents/PhD/Papers/FuseSOM_Paper/result_data/FuseSOM_vs_FlowSOM_Vanilla.csv')
 colnames(res)[[4]] <- 'FM-Index'
@@ -455,11 +454,15 @@ colnames(res)[[4]] <- 'FM-Index'
 res.melted <- melt(res)
 res.melted$Method <- factor(res.melted$Method, 
                            levels = c('FuseSOM', 'FlowSOM'))
+```
 
-p <- ggplot(res.melted, aes(x=Method, y=value)) + 
-  geom_boxplot(aes(fill = Method)) + 
-  facet_wrap(~variable) + 
-  labs(title = "", x = "", y = "Score") + 
+# Generate Figure 6B
+```{r}
+p.box.all <- ggpaired(res.melted, x = "Method", y = "value",
+          color = "Method", palette = "startrek", 
+          add = "jitter", line.color = "gray", 
+          line.size = 1, point.size = 3, facet.by = 'variable') +
+  labs(title = "", x = "", y = "ARI") + 
   theme_bw() + 
   theme(axis.text.x = element_text(size = 20),
         axis.text.y = element_text(size = 20),
@@ -467,10 +470,16 @@ p <- ggplot(res.melted, aes(x=Method, y=value)) +
         axis.title.x = element_text(size = 20),
         strip.text.x = element_text(size = 20),
         legend.text = element_text(size = 20),
-        legend.title = element_text(size = 20)) + 
-  scale_fill_startrek()
+        legend.title = element_text(size = 20),
+        plot.subtitle = element_text(size = 20)) + 
+  stat_compare_means(paired = TRUE, size = 6,
+                     label.x = 1.5, label = "p.format") +
+  geom_line(aes(group = Dataset), alpha = 0.1)
+
 ```
-# generate bar plot
+
+
+# Generate Figure 6 A
 ```{r}
 res$Method <- factor(res$Method, levels = c('FuseSOM', 'FlowSOM'))
 p.bar.ari <- ggplot(res, aes(x=Dataset, y=ARI, fill=Method)) + 
@@ -515,3 +524,8 @@ p.bar.fmeasure <- ggplot(res, aes(x=Dataset, y=FMeasure, fill=Method)) +
 p.bar.final <- plot_grid(p.bar.ari, p.bar.nmi, p.bar.fm, p.bar.fmeasure)
 ```
 
+# Generate Figure 6
+```{r, fig.height=10, fig.width=18}
+p.final <- plot_grid(p.bar.final, p.box.all, labels = c('A', 'B'), rel_widths = c(5/10, 5/10))
+p.final
+```

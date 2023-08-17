@@ -258,7 +258,7 @@ res.prox.mccaferry <- lapply(mccaferry_subsets, kmeansRun, markers = mccaferry_m
                                distmet = 'euclidean') %>% bind_rows()
 
 res.mccaferry <- rbind(res.corr.mccaferry, res.prox.mccaferry)
-res.mccaferry$Dataset <- rep('Mccaferry et al', nrow(res.mccaferry))
+res.mccaferry$Dataset <- rep('McCaffery et al', nrow(res.mccaferry))
 ```
 
 ## Liu2022
@@ -481,7 +481,7 @@ res.combined.melted$Metric <- factor(res.combined.melted$Metric, levels = c("Pea
 ```
 
 
-# Generate bar plot
+# Generate Figure S1A
 ```{r}
 p.bar.kmeans <- ggplot(res.combined.melted, aes(x = Dataset, y = value, fill = Metric)) +
   geom_bar(stat = "identity", position = position_dodge(), alpha = 1) +

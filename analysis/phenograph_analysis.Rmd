@@ -477,7 +477,7 @@ res.combined.melted$Metric <- factor(res.combined.melted$Metric, levels = c("cor
 ```
 
 
-# Generate bar plot
+# Generate Figure S1D
 ```{r}
 p.bar.pheno <- ggplot(res.combined.melted, aes(x = Dataset, y = value, fill = Metric)) +
   geom_bar(stat = "identity", position = position_dodge(), alpha = 1) +

@@ -15,6 +15,8 @@ gc()
 library(tidyverse)  # data manipulation
 library(ggplot2)
 library(data.table)
+# library(rnndescent)
+# library(imcdatasets)
 library(flowAssist)
 library(FlowSOM)
 library(Rcpp)
@@ -26,10 +28,14 @@ library(ggstatsplot)
 library(ggsci)
 library(rcartocolor)
 library(FuseSOM)
+library(pryr)
+library(microbenchmark)
 set.seed(1994)
 library(miceadds)
 library("profmem")
-source.all('/home/ewillie/Documents/PhD/Papers/FuseSOM_Paper/helper_scripts')
+source.all('/home/ewillie/Documents/PhD/Spatial_Clustering/clustering/scripts/')
+# sourceCpp('/albona/nobackup2/elijahw/spatial_analysis/clustering/scripts/distMat.cpp')
+# sourceCpp('/albona/nobackup2/elijahw/spatial_analysis/clustering/scripts/instabCorrection.cpp')
 ```
 
 
@@ -45,7 +51,11 @@ hoch_markers <- colnames(hoch_dat)[1:41]
 
 
 ```{r}
-hoch_sub <- hoch_dat[sample(nrow(hoch_dat), 100000), hoch_markers]
+temp <- list(hoch_dat[sample(nrow(hoch_dat), 100000), hoch_markers],
+             hoch_dat[sample(nrow(hoch_dat), 200000), hoch_markers])
+
+
+# hoch_sub <- hoch_dat[sample(nrow(hoch_dat), 100000), hoch_markers]
 ```
 
 ```{r}
@@ -58,57 +68,133 @@ print(t)
 ```
 
 ```{r}
-runMemProf <- function(data,markers,n){
-  dat_sub <- data[sample(nrow(data), n), markers]
-  start_time <- Sys.time()
-  p <- profmem(runFuseSOM(dat_sub, markers = markers, numClusters = 10))
-  end_time <- Sys.time()
-  print(end_time - start_time)
-  
+# Your function1
+function1 <- function(data) {
+  runFuseSOM(data, markers = hoch_markers, numClusters = 10, size = 10)
+}
+
+# Your function2
+function2 <- function(data) {
+  ff <- DFtoFF(as.data.frame(data[, hoch_markers]))
+  flo_res <- FlowSOM_custom(ff,scale=F,nClus=10, 
+                           distance = 'euclidean', clusterAlg = 'hc')
+  labels <- GetMetaclusters(flo_res)
+}
+
+function3 <- function(data){
+  pheno_clusters <- ReductionWrappers::phenograph(data[, hoch_markers], n_jobs = 8,
+                                primary_metric = 'euclidean', k = 30)
+}
+
+# Profiling function
+profile_function <- function(fun, data) {
+  # Profiling time
+  time <- microbenchmark(fun(data), times = 1L)$time %>%
+    as.numeric()
+  return(time/1e9)
+}
+
+memory_function <- function(fun, data){
+  p <- profmem(fun(data))
   mem <- sum(p[!is.na(p$bytes), ]$bytes)/(1e9)
   
   return(mem)
+}
+
+```
+
+```{r}
+# Use case
+input_size <- seq(50000, 400000, by=50000)  # change input size as required
+profile_results <- lapply(input_size, function(size) {
+  data <- hoch_dat[sample(nrow(hoch_dat), size), hoch_markers]  # generate random data; modify as required
   
-}
-```
+  list(
+    size = size,
+    FuseSOM = profile_function(function1, data),
+    FlowSOM = profile_function(function2, data),
+    PhenoGraph = profile_function(function3, data)
+  )
+}) %>%
+  bind_rows() %>%
+  melt(id.vars = 'size')
 
+
+write.csv(profile_results, 'method_timing_results.csv', row.names = F)
+```
 
 
 ```{r}
-res.mem <- vector(mode = 'numeric', length = 8)
-vals <- seq(100000, 800000, by = 100000)
+memory_results <- lapply(input_size, function(size) {
+  data <- hoch_dat[sample(nrow(hoch_dat), size), hoch_markers]  # generate random data; modify as required
+  
+  list(
+    size = size,
+    FuseSOM = memory_function(function1, data),
+    FlowSOM = memory_function(function2, data),
+    PhenoGraph = memory_function(function3, data)
+  )
+}) %>%
+  bind_rows() %>%
+  melt(id.vars = 'size')
 
-for(i in 1:length(vals)){
-  res.mem[[i]] <- runMemProf(data = hoch_dat, markers = hoch_markers, n = vals[i])
-  gc()
-}
-```
-
-# input times based on for loop from previous chunk
-```{r}
-res.times <- c(23, 45, 68, 114, 132, 168, 198, 251)
-```
-
-```{r}
-res.final <- data.frame(NumCells=log(vals), Mem=res.mem, Time=res.times)
-
-p.mem <- ggplot(res.final, aes(x=NumCells, y=Mem)) + 
-  geom_point(aes(size = 10)) +
-  theme_bw() + labs(x = "log(number of cells)", y = "Total memory (GB)") + 
-  theme(axis.text.x = element_text(size = 25),
-        axis.text.y = element_text(size = 25),
-        axis.title.y = element_text(size = 25),
-        axis.title.x = element_text(size = 25),
-        legend.position = 'none')
-
-p.time <- ggplot(res.final, aes(x=NumCells, y=Time)) + 
-  geom_point(aes(size=10)) +
-  theme_bw() + labs(x = "log(number of cells)", y = "Total time (seconds)") + 
-  theme(axis.text.x = element_text(size = 25),
-        axis.text.y = element_text(size = 25),
-        axis.title.y = element_text(size = 25),
-        axis.title.x = element_text(size = 25),
-        legend.position = 'none')
+write.csv(memory_results, 'method_memory_results.csv', row.names = F)
 ```
 
 
+# Generate Figure S2A
+```{r, fig.height=6,fig.width=8}
+profile_results <- read.csv('/home/ewillie/Documents/PhD/Spatial_Clustering/clustering/method_timing_results.csv')
+
+profile_results[profile_results$Method == 'PhenGraph', ]$Method <- 'PhenoGraph'
+
+colnames(profile_results) <- c('Size', 'Method', 'Score')
+
+p.time <- profile_results %>%
+  ggplot(aes(x = Size/1e4, y = Score)) +
+  geom_point(aes(color = Method), size = 3) + 
+  theme_bw() + 
+  labs(title = "", x = "Number of cells (*10K)", y = "Total time (seconds)") +
+  theme(axis.text.x = element_text(size = 20),
+        axis.text.y = element_text(size = 20),
+        axis.title.y = element_text(size = 20),
+        axis.title.x = element_text(size = 20),
+        strip.text.x = element_text(size = 20),
+        legend.text = element_text(size = 20),
+        legend.title = element_text(size = 20),
+        legend.position = "none") + 
+  scale_fill_startrek()
+
+p.time
+```
+
+# Generate Figure S2B
+```{r, fig.height=6,fig.width=8}
+memory_results <- read.csv('/home/ewillie/Documents/PhD/Spatial_Clustering/clustering/method_memory_results.csv')
+
+colnames(memory_results) <- c('Size', 'Method', 'Score')
+
+memory_results$Method <- if_else(memory_results$Method == 'PhenGraph', 
+                                 'PhenoGraph', memory_results$Method)
+
+p.mem <- memory_results %>%
+  ggplot(aes(x = Size/1e4, y = Score)) +
+  geom_point(aes(color = Method), size = 3) + 
+  theme_bw() + 
+  labs(title = "", x = "Number of cells (*10K)", y = "Total meomory (GB)") +
+  theme(axis.text.x = element_text(size = 20),
+        axis.text.y = element_text(size = 20),
+        axis.title.y = element_text(size = 20),
+        axis.title.x = element_text(size = 20),
+        strip.text.x = element_text(size = 20),
+        legend.text = element_text(size = 20),
+        legend.title = element_text(size = 20)) + 
+  scale_fill_startrek()
+
+p.mem
+```
+
+# Generate Figure S2
+```{r,fig.height=6,fig.width=13}
+cowplot::plot_grid(p, p.mem, rel_widths = c(4/10, 6/10), labels = c('A', 'B'))
+```

@@ -359,7 +359,7 @@ res$Method <- rep(c("Discrimant","Gap","Slope","Jump","WCD","Silhouette"),
 
 ```
 
-
+Generate Figure 7A
 ```{r}
 res <- read.csv('~/Documents/PhD/Spatial_Clustering/clustering/clust_est_analysis.csv')
 colnames(res)[[3]] <- "FM-Index"
@@ -369,7 +369,9 @@ res.re <- res %>% dplyr::select(Method, RE, Dataset) %>% as.data.frame() %>%
 colnames(res.re) <- c('Dataset', 'Method', 'RE' ,'Relative-Error')
 # res.melted$`Relative Error` <- as.numeric(res.melted$`Relative Error`)
 
-p <- ggplot(res.re, aes(x=Method, y=`Relative-Error`)) + geom_boxplot(fill='grey') +
+p.RE <- ggpaired(res.re, x= 'Method', y = '`Relative-Error`',
+                 fill = 'Method', add = 'jitter', palette = 'jama',
+                 point.size = 3) + 
   labs(title="",
         x ="Cluster Estimation Method", y = "Relative Error") + theme_bw() +
   theme(
@@ -378,12 +380,16 @@ p <- ggplot(res.re, aes(x=Method, y=`Relative-Error`)) + geom_boxplot(fill='grey
       axis.title.x = element_text(color="Black", size=25),
       axis.title.y = element_text(color="Black", size=25),
       axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 25),
-      axis.text.y = element_text(size = 25)
+      axis.text.y = element_text(size = 25),
+      legend.position = "none"
+      
     ) +
-  geom_hline(yintercept=0, linetype='dotted', col = 'black', linewidth = 3) 
+  geom_hline(yintercept=0, linetype='dotted', col = 'red', linewidth = 2) 
+
+p.RE
 ```
 
-
+# Generate figure 7B
 ```{r}
 res.metrics <- res %>% dplyr::select(Method, Dataset, ARI, NMI, `FM-Index`, FMeasure) %>% 
   as.data.frame() %>% 
@@ -391,18 +397,27 @@ res.metrics <- res %>% dplyr::select(Method, Dataset, ARI, NMI, `FM-Index`, FMea
 
 colnames(res.metrics) <- c('Dataset', 'Method', 'Metric' ,'Score')
 
-p.metrics <- ggplot(res.metrics[res.metrics$Metric %like% 'ARI', ], aes(x=Method, y=Score)) + geom_boxplot(fill = 'grey') +
+p.metrics <-ggpaired(res.metrics, x= 'Method', y = 'Score',
+                 fill = 'Method', add = 'jitter', palette = 'jama',
+                 point.size = 3, facet.by = 'Metric') + 
   labs(title="",
-        x ="Cluster Estimation Method", y = "ARI") +
-# facet_wrap(~Metric) + 
-  theme_bw() +
+        x ="Cluster Estimation Method", y = "Score") + theme_bw() +
   theme(
+      plot.title = element_text(color="Black", size=25, hjust = 0.5),
+      plot.subtitle = element_text(color = "red", size = 25, face = "bold", hjust = 0.5),
       axis.title.x = element_text(color="Black", size=25),
       axis.title.y = element_text(color="Black", size=25),
       axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 25),
-      strip.text.x = element_text(size = 25),
       axis.text.y = element_text(size = 25),
-    ) 
+      legend.text = element_text(size = 25),
+      legend.title = element_text(size = 25),
+    )
+
+p.metrics
 
 ```
 
+# Generate Figure 7
+```{r, fig.height=8, fig.width=16}
+cowplot::plot_grid(p.RE, p.metrics, labels = c('A','B'), rel_widths = c(2/5, 3/5))
+```

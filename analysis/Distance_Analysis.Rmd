@@ -378,7 +378,7 @@ names(res)[names(res) == 'FM.Index'] <- 'FM-Index'
 ```
 
 
-# plot results
+# Generate Figure 4
 ```{r}
 res.melted <- melt(res)
 # All, P +S, C+S, P+C, P, C, S
@@ -403,13 +403,12 @@ res.melted$Method  <- factor(res.melted$Method , levels=c("Pearson", "Spearman",
 t <- res.melted %>% group_by(Method, variable) %>% summarise(value = mean(value))
 
 # You can replace Fmeasure with other metrics to generate plot
-p.fmeasure <- ggplot(t[t$variable %like% 'FMeasure', ], aes(x=Method, y=value)) + 
+p.distance <- ggplot(t, aes(x=Method, y=value)) + 
   geom_point(aes(size = 15)) + 
   # geom_point(data=t.3, aes(x = Method, y = value), 
   #                                        color = "red") +
   facet_wrap(~variable, scales='free_y') + 
-  labs(title = "", x = "", y = "Score") + 
-  ylim(0.50, 0.70) +
+  labs(title = "", x = "", y = "Score") +
   theme_bw() + 
   theme(legend.position  = 'None',
       plot.title = element_text(color="Black", size=25, face="bold", hjust = 0.5),

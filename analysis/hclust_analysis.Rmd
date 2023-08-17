@@ -263,7 +263,7 @@ res.prox.mccaferry <- lapply(mccaferry_subsets, run_prox, markers = mccaferry_ma
                                prox_metrics = prox_metrics) %>% bind_rows()
 
 res.mccaferry <- rbind(res.corr.mccaferry, res.prox.mccaferry)
-res.mccaferry$Dataset <- rep('Mccaferry et al', nrow(res.mccaferry))
+res.mccaferry$Dataset <- rep('McCaffery et al', nrow(res.mccaferry))
 ```
 
 ## Liu2022
@@ -465,6 +465,8 @@ res.combined <- rbind(res.maldegem, res.rendeiro, res.risom, res.damond,
 #           row.names = F)
 
 ```
+
+
 ```{r}
 res.combined<- read.csv('/home/ewillie/Documents/PhD/Papers/FuseSOM_Paper/result_data/hclust_analysis_results_all_20k.csv')
 colnames(res.combined)[[3]] <- "FM-Index"
@@ -484,7 +486,7 @@ res.combined.melted$Metric <- factor(res.combined.melted$Metric, levels = c("Pea
 ```
 
 
-# Generate bar plot
+# Generate Figure S1B
 ```{r}
 res.combined.melted.sub <- res.combined.melted[res.combined.melted$Metric %in% c('Pearson', 'Euclidean'), ]
 res.combined.melted.sub$Metric <- if_else(res.combined.melted.sub$Metric %like% 'Pearson', 'Correlation', 'Euclidean')
@@ -507,7 +509,7 @@ p.bar.hclust <- ggplot(res.combined.melted.sub, aes(x = Dataset, y = value, fill
 
 
 
-# generate bubble plot
+# Generate Figure 2
 ```{r}
 t <- res.combined %>% 
   group_by(Metric,Dataset) %>% 
@@ -549,8 +551,30 @@ p.bubble <- ggplot(ranked.data,
     ) + scale_color_futurama()
 
 ```
+# Generate Figure S5
+```{r, fig.height=10, fig.width=12}
+# res.combined.melted.sub <- res.combined.melted[res.combined.melted$Metric %in% c('Pearson', 'Euclidean'), ]
+# res.combined.melted.sub$Metric <- if_else(res.combined.melted.sub$Metric %like% 'Pearson', 'Correlation', 'Euclidean')
 
-# generate umap plots
+p.box.hclust <- ggplot(res.combined.melted, aes(x = Dataset, y = value, color = Metric)) +
+  geom_boxplot(size = 0.8) + facet_wrap(~variable, scales = 'free') + 
+  theme_bw() +
+  ylab("Score") + theme(
+      plot.title = element_text(color="Black", size=18, face="bold", hjust = 0.5),
+      plot.subtitle = element_text(color = "red", size = 18, hjust = 0.5),
+      axis.title.x = element_text(color="Black", size=18),
+      axis.title.y = element_text(color="Black", size=18),
+      axis.text.y = element_text(size = 18),
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 18),
+      strip.text.x = element_text(size = 18),
+      legend.title = element_text(size=18), #change legend title font size
+      legend.text = element_text(size=18) #change legend text font size)
+    ) + scale_color_startrek() + ggtitle('')
+
+p.box.hclust
+```
+
+# Generate figure 1
 ```{r}
 set.seed(1994)
 nb.cols <- 16
@@ -721,7 +745,4 @@ p.max <- ggplot(umap_df, aes(x=`UMAP 1`, y=`UMAP 2`)) + geom_point(aes(color=max
   scale_color_manual(values = mycolors)
 ```
 
-```{r}
-p.final <- cowplot::plot_grid(p.pear,p.cos, p.spear, p.eucl, p.man, p.max)
-```
 

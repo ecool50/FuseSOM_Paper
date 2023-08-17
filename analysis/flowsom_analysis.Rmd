@@ -264,7 +264,7 @@ res.prox.mccaferry <- lapply(mccaferry_subsets, run_flowsom, markers = mccaferry
                                metric = 'euclidean') %>% bind_rows()
 
 res.mccaferry <- rbind(res.corr.mccaferry, res.prox.mccaferry)
-res.mccaferry$Dataset <- rep('Mccaferry et al', nrow(res.mccaferry))
+res.mccaferry$Dataset <- rep('McCaffery et al', nrow(res.mccaferry))
 ```
 
 ## Liu2022
@@ -483,7 +483,7 @@ res.combined.melted <- melt(res.combined, id.vars = c('Metric', 'Dataset'))
 res.combined.melted$Metric <- factor(res.combined.melted$Metric, levels = c("pearson", "euclidean"))
 ```
 
-# Generate bar plot
+# Generate Figure S1C
 ```{r}
 p.bar.flow <- ggplot(res.combined.melted, aes(x = Dataset, y = value, fill = Metric)) +
   geom_bar(stat = "identity", position = position_dodge(), alpha = 1) +

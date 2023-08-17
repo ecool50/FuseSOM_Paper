@@ -1,0 +1,118 @@
+---
+title: "All Methods Analysis"
+author: "Elijah WIllie"
+date: "2023-08-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+rm(list = ls())
+gc()
+library(tidyverse)
+library(ggplot2)
+library(psych)
+library(analogue)
+library(data.table)
+library(DiffCorr)
+library(coop)
+library(miceadds)
+library(trqwe)
+library(ggstatsplot)
+library(ggsci)
+library(rcartocolor)
+library(parallelDist)
+library(parallel)
+library(paletteer)
+library(FlowSOM)
+library(RColorBrewer)
+library(flowAssist)
+source.all('/home/ewillie/Documents/PhD/Papers/FuseSOM_Paper/helper_scripts')
+```
+
+# Read in the result files
+```{r}
+Kmeans_res <- read.csv('kmeans_analysis_results_all_20k.csv')
+Kmeans_res <- Kmeans_res[, 2:ncol(Kmeans_res)]
+Kmeans_res$Method <- rep('Kmeans', nrow(Kmeans_res))
+
+flowSOM_res <- read.csv('flowsom_analysis_results_all_20k.csv')
+flowSOM_res$Method <- rep('FlowSOM', nrow(flowSOM_res))
+
+phenograph_res <- read.csv('phenograph_analysis_results_all_20k.csv')
+phenograph_res$Method <- rep('PhenoGraph', nrow(phenograph_res))
+
+hclust_res <- read.csv('hclust_analysis_results_all_20k.csv')
+hclust_res <- hclust_res[hclust_res$Metric %in% c('euclidean', 'pearson'), ]
+hclust_res$Method <- rep('Hierarchical', nrow(hclust_res))
+```
+
+# Combine the datasets
+```{r}
+dat_comb <- rbind(Kmeans_res, flowSOM_res, phenograph_res, hclust_res)
+colnames(dat_comb)[[3]] <- 'FM-Index'
+
+dat_comb$Dataset <- dat_comb$Dataset %>%
+  recode('Mccaferry et al' = 'McCaffrey et al')
+
+dat_comb$Metric <- dat_comb$Metric %>%
+  recode('euclidean' = 'Euclidean',
+         'pearson' = 'Pearson',
+         'correlation' = 'Pearson')
+```
+
+# Generate Figure 3
+````{r, fig.height=10, fig.width=12}
+# res.combined.melted.sub <- res.combined.melted[res.combined.melted$Metric %in% c('Pearson', 'Euclidean'), ]
+# res.combined.melted.sub$Metric <- if_else(res.combined.melted.sub$Metric %like% 'Pearson', 'Correlation', 'Euclidean')
+
+dat_comb_melted <- melt(dat_comb, id.vars = c('Metric','Dataset', 'Method'))
+
+colnames(dat_comb_melted) <- c('Distance','Dataset', 'Method', 'Metric', 'Score')
+
+dat_comb_melted$subsample <- factor(rep(1:5, 480))
+
+p.box.hclust <- ggplot(dat_comb_melted, aes(x = Method, y = Score, fill = Distance)) +
+  geom_boxplot(size = 0.8) + facet_wrap(~Metric, scales = 'free') + 
+  theme_bw() +
+  ylab("Score") + theme(
+      plot.title = element_text(color="Black", size=18, face="bold", hjust = 0.5),
+      plot.subtitle = element_text(color = "red", size = 18, hjust = 0.5),
+      axis.title.x = element_text(color="Black", size=18),
+      axis.title.y = element_text(color="Black", size=18),
+      axis.text.y = element_text(size = 18),
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 18),
+      strip.text.x = element_text(size = 18),
+      legend.title = element_text(size=18), #change legend title font size
+      legend.text = element_text(size=18) #change legend text font size)
+    ) + scale_fill_jama() + ggtitle('')
+```
+
+# Generate Figure S4
+```{r, fig.height=12, fig.width=14}
+# my_comparisons <- list( c("0.5", "1"), c("1", "2"), c("0.5", "2") )
+
+p.all <- ggpaired(dat_comb_melted, x = "Distance", y = "Score",
+          fill = "Distance", palette = "jama", line.size = 1,
+          size = 1, facet.by = c('Metric','Method'), alpha = 0.1) +
+  labs(title = "", x = "", y = "Score") + 
+  theme_bw() + 
+  theme(axis.text.x = element_text(size = 18),
+        axis.text.y = element_text(size = 18),
+        axis.title.y = element_text(size = 18),
+        axis.title.x = element_text(size = 18),
+        strip.text.x = element_text(size = 18),
+        legend.text = element_text(size = 18),
+        legend.title = element_text(size = 18),
+        plot.subtitle = element_text(size = 18)) + 
+  stat_compare_means(paired = TRUE, size = 4,
+                     label.x = 1.5, label = "p.format")
+
+p.all + geom_line(aes(group = paste0(Dataset, subsample)), alpha = 0.1)
+```
+
+
+

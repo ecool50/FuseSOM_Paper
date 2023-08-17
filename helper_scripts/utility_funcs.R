@@ -1000,3 +1000,87 @@ split_by_pca = function(x) {
   return(res)
 }
 
+customWeighting <- function(method, data, markers, prototypes){
+  # generate the prototypes
+  
+  # compute the distances on the generated prototypes
+  pear <- cor(t(prototypes$prototypes), method = "pearson")
+  cosi <- tcosine(prototypes$prototypes)
+  spear <- cor(t(prototypes$prototypes), method = "spearman")
+  eucl <- dist(prototypes$prototypes) %>%
+    as.matrix()
+  
+  message(paste('Now running for method:',method))
+  
+  if(method == 'pca'){
+    # Vectorize the distance matrices and combine
+    combined_matrix <- rbind(as.vector(pear), 
+                             as.vector(cosi),
+                             as.vector(spear),
+                             as.vector(eucl))
+    
+    # Perform PCA
+    pca_result <- prcomp(combined_matrix)
+    
+    # The loadings of the first principal component will be our weights
+    weights <- pca_result$sdev
+    
+    # Normalize the weights to sum up to 1
+    weights <- weights / sum(weights)
+    
+    # Combine distance matrices using the weights
+    # finalDist <- weights[1] * cor2dist(pear) + weights[2] * cor2dist(cosi) + 
+    #   weights[3] * cor2dist(spear) + weights[4] * eucl
+    
+    finalDist <- as.matrix(fuse(cor2dist(pear), cor2dist(cosi),
+                                cor2dist(spear), eucl, weights = weights))
+  } else if(method == 'fuse'){
+    finalDist <- as.matrix(fuse(cor2dist(pear), cor2dist(cosi),
+                                cor2dist(spear), eucl))
+  } else {
+    # cluster the distances individually
+    cluster_pear <- HierarchicalClustering(cor2dist(pear),
+                                           ClusterNo = length(unique(data$CellType)),
+                                           Type = "AverageL")$Cls
+    cluster_cosi <- HierarchicalClustering(cor2dist(cosi),
+                                           ClusterNo = length(unique(data$CellType)),
+                                           Type = "AverageL")$Cls
+    cluster_spear <- HierarchicalClustering(cor2dist(spear),
+                                            ClusterNo = length(unique(data$CellType)),
+                                            Type = "AverageL")$Cls
+    cluster_eucl <- HierarchicalClustering(eucl,
+                                           ClusterNo = length(unique(data$CellType)),
+                                           Type = "AverageL")$Cls
+    
+    # compute the scores for each of the metho
+    score1 <- cluster.stats(as.dist(cor2dist(pear)), cluster_pear)[[method]]
+    score2 <- cluster.stats(as.dist(cor2dist(cosi)), cluster_cosi)[[method]]
+    score3 <- cluster.stats(as.dist(cor2dist(spear)), cluster_spear)[[method]]
+    score4 <- cluster.stats(as.dist(eucl), cluster_eucl)[[method]]
+    
+    # Normalize the scores to sum to 1
+    scores_all <- c(score1, score2, score3, score4)
+    weights <- scores_all/sum(scores_all)
+    
+    # Combine distance matrices using the weights
+    # finalDist <- weights[1] * cor2dist(pear) + weights[2] * cor2dist(cosi) + 
+    #   weights[3] * cor2dist(spear) + weights[4] * eucl
+    
+    finalDist <- as.matrix(fuse(cor2dist(pear), cor2dist(cosi),
+                                cor2dist(spear), eucl, weights = weights))
+    
+  }
+  
+  # Then perform clustering on the combined matrix
+  clusters <- HierarchicalClustering(finalDist, 
+                                     ClusterNo = length(unique(data$CellType)), 
+                                     Type = "AverageL")$Cls
+  
+  clusters <- clusters[prototypes$classif]
+  
+  res <- ComputeMetrics(data$CellType, clusters)
+  
+  return(res)
+}
+
+
