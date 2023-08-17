@@ -17,4 +17,4 @@ Helper Scripts
 - This directory contains helper scripts used for analysis
 
 Results Data
-- This directory contians the result data from the analysis files which were used to generate figures in the manuscript.
+- This directory contains the result data from the analysis files which were used to generate figures in the manuscript.
