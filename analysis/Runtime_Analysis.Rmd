@@ -142,7 +142,7 @@ write.csv(memory_results, 'method_memory_results.csv', row.names = F)
 ```
 
 
-# Generate Figure S2A
+# Generate Figure S3A
 ```{r, fig.height=6,fig.width=8}
 profile_results <- read.csv('/home/ewillie/Documents/PhD/Spatial_Clustering/clustering/method_timing_results.csv')
 
@@ -168,7 +168,7 @@ p.time <- profile_results %>%
 p.time
 ```
 
-# Generate Figure S2B
+# Generate Figure S3B
 ```{r, fig.height=6,fig.width=8}
 memory_results <- read.csv('/home/ewillie/Documents/PhD/Spatial_Clustering/clustering/method_memory_results.csv')
 
@@ -194,7 +194,7 @@ p.mem <- memory_results %>%
 p.mem
 ```
 
-# Generate Figure S2
+# Generate Figure S3
 ```{r,fig.height=6,fig.width=13}
 cowplot::plot_grid(p.time, p.mem, rel_widths = c(4/10, 6/10), labels = c('A', 'B'))
 ```

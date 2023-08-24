@@ -28,6 +28,8 @@ library(parallel)
 library(umap)
 library(RColorBrewer)
 library(amap)
+library(SingleCellExperiment)
+library(paletteer)
 source.all('/home/ewillie/Documents/PhD/Papers/FuseSOM_Paper/helper_scripts')
 ```
 
@@ -235,7 +237,7 @@ res.keren <- rbind(res.corr.keren, res.prox.keren)
 res.keren$Dataset <- rep('Keren et al', nrow(res.keren))
 ```
 
-# McCaffery2022
+# McCaffrey2022
 # load data and get markers
 ```{r}
 # read in the data
@@ -475,6 +477,8 @@ res.combined$Metric <- str_to_title(res.combined$Metric)
 res.combined <- res.combined %>% group_by(Metric, Dataset) %>% summarise(ARI=mean(ARI), NMI=mean(NMI), 
                                                         `FM-Index`=mean(`FM-Index`),
                                                         FMeasure=mean(FMeasure))
+res.combined$Dataset <- if_else(res.combined$Dataset == 'Mccaferry et al', 
+                                'McCaffrey et al', res.combined$Dataset)
 
 res.combined.melted <- melt(res.combined, id.vars = c('Metric', 'Dataset'))
 
@@ -485,8 +489,6 @@ res.combined.melted$Metric <- factor(res.combined.melted$Metric, levels = c("Pea
 
 ```
 
-
-# Generate Figure S1B
 ```{r}
 res.combined.melted.sub <- res.combined.melted[res.combined.melted$Metric %in% c('Pearson', 'Euclidean'), ]
 res.combined.melted.sub$Metric <- if_else(res.combined.melted.sub$Metric %like% 'Pearson', 'Correlation', 'Euclidean')
@@ -510,7 +512,7 @@ p.bar.hclust <- ggplot(res.combined.melted.sub, aes(x = Dataset, y = value, fill
 
 
 # Generate Figure 2
-```{r}
+```{r, fig.height=7, fig.width=9}
 t <- res.combined %>% 
   group_by(Metric,Dataset) %>% 
   summarise(ARI=ave(ARI), NMI=ave(NMI), `FM-Index`=ave(`FM-Index`),
@@ -533,29 +535,26 @@ ranked.data$Distance <- factor(ranked.data$Distance, levels = c("Pearson", "Spea
                                                                 "Manhattan", "Maximum"))
 
 
-p.bubble <- ggplot(ranked.data, 
+ggplot(ranked.data, 
                    aes(x = Dataset, y = Distance)) +
   geom_point(aes(size=Rank, color=Rank), alpha=1) +
   facet_wrap(~variable) + 
   labs( x= "", y = "") +
   theme(
-      axis.title.x = element_text(color="Black", size=25, face="bold"),
+      axis.title.x = element_text(color="Black", size=18, face="bold"),
       axis.text.y = element_text(vjust = 0.5, hjust=1, 
-                                 size = 25, color="Black"),
+                                 size = 18, color="Black"),
       panel.background = element_blank(),
-      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 25),
-      strip.text.x = element_text(size = 25),
-      legend.title = element_text(size = 20),
-      legend.text = element_text(size = 20),
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 18),
+      strip.text.x = element_text(size = 18),
+      legend.title = element_text(size = 18),
+      legend.text = element_text(size = 18),
       legend.key=element_blank()
     ) + scale_color_futurama()
 
 ```
-# Generate Figure S5
+# Generate Figure S1
 ```{r, fig.height=10, fig.width=12}
-# res.combined.melted.sub <- res.combined.melted[res.combined.melted$Metric %in% c('Pearson', 'Euclidean'), ]
-# res.combined.melted.sub$Metric <- if_else(res.combined.melted.sub$Metric %like% 'Pearson', 'Correlation', 'Euclidean')
-
 p.box.hclust <- ggplot(res.combined.melted, aes(x = Dataset, y = value, color = Metric)) +
   geom_boxplot(size = 0.8) + facet_wrap(~variable, scales = 'free') + 
   theme_bw() +
@@ -575,18 +574,27 @@ p.box.hclust
 ```
 
 # Generate figure 1
-```{r}
+```{r, fig.height=6, fig.width=8}
+sce <- SingleCellExperiment(assays = list(counts = t(mccaferry_dat[, mccaferry_markers])
+),
+colData = mccaferry_dat$CellType)
+
 set.seed(1994)
 nb.cols <- 16
 mycolors <- colorRampPalette(brewer.pal(12, "Set3"))(nb.cols)
 mycolors_new <- paletteer_d("ggsci::category20b_d3")
 
 # generate UMAP
-res <- mccaferry_dat[, mccaferry_markers] %>% umap()
+sce <- scater::runUMAP(sce,
+                         subset_row = mccaferry_markers,
+                         exprs_values = "counts", 
+                         n_threads = 7,
+                         metric = 'cosine',
+                         verbose = T)
 
-umap_df <- res$layout %>%
-  as.data.frame()
-colnames(umap_df) <- c('UMAP 1', 'UMAP 2')
+# umap_df <- res$layout %>%
+#   as.data.frame()
+# colnames(umap_df) <- c('UMAP 1', 'UMAP 2')
 
 mccaferry_dat$CellType <- gsub("\\_"," ",mccaferry_dat$CellType)
 # CellType <- gsub("\\_"," ",CellType)
@@ -611,23 +619,40 @@ mccaferry_dat$CellType <- dplyr::recode(mccaferry_dat$CellType,
                                          'Treg' = 'Regulatory T cells',
                                          'Epithelial' = 'Epithelial cells')
 
-CellType <- mccaferry_dat$CellType
+sce$`Cell Type` <- mccaferry_dat$CellType
 
 gc()
-p.orig <- ggplot(umap_df, aes(x=`UMAP 1`, y=`UMAP 2`)) + geom_point(aes(color=CellType)) + 
+
+umap_df <- reducedDim(sce, 'UMAP') %>%
+    as.data.frame()
+colnames(umap_df) <- c('UMAP 1', 'UMAP 2')
+
+umap_df$`Cell Type` <- sce$`Cell Type`
+```
+
+```{r, fig.height=10, fig.width=16}
+p.orig <- ggplot(umap_df, aes(x=`UMAP 1`, y=`UMAP 2`)) + 
+  geom_point(aes(color=`Cell Type`), size = 3) + 
   theme_bw() + 
-  ggtitle("Annotated cells (Mccaferry et al)") +
+  ggtitle("Annotated cells (McCaffrey et al)") +
   theme(axis.text.x = element_text(size = 25),
-        plot.title = element_text(size = 25, hjust = 0.5),
+        plot.title = element_text(size = 30, 
+                                  hjust = 0.5, face = 'bold'),
         axis.text.y = element_text(size = 25),
         axis.title.y = element_text(size = 25),
         axis.title.x = element_text(size = 25),
         legend.text = element_text(size = 25),
-        legend.title = element_text(size = 25)
+        legend.title = element_text(size = 25, face = 'bold')
         ) + 
   scale_color_manual(values = mycolors_new) + 
-  guides(color=guide_legend(ncol=1))
-  
+  guides(color=guide_legend(ncol = 1, 
+                            override.aes = list(size=12)))
+
+p.orig
+```
+
+
+```{r, fig.height=4, fig.width=6}
 # cluster the dataset using the six metrics
 dat <- mccaferry_dat[, mccaferry_markers]
 
@@ -639,11 +664,13 @@ gc()
 pear.clusts <- cutree(fastcluster::hclust(as.dist(d.pear), method = 'complete'), k)
 pear.clusts <- as.factor(pear.clusts)
 pear.metrics <- ComputeMetrics(mccaferry_dat$CellType, pear.clusts)
-p.pear <- ggplot(umap_df, aes(x=`UMAP 1`, y=`UMAP 2`)) + geom_point(aes(color=pear.clusts)) + 
+p.pear <- ggplot(umap_df, aes(x=`UMAP 1`, y=`UMAP 2`)) + 
+  geom_point(aes(color=pear.clusts), size = 3) + 
   theme_bw() + theme(legend.position="none") + 
   ggtitle("Hierarchical clustering using Pearson \nARI=0.22, NMI=0.28, FM-Index=0.33, FMeasure=0.46") + 
   theme(axis.text.x = element_text(size = 25),
-        plot.title = element_text(size = 25, hjust = 0.5),
+        plot.title = element_text(size = 25, 
+                                  hjust = 0.5),
         axis.text.y = element_text(size = 25),
         axis.title.y = element_text(size = 25),
         axis.title.x = element_text(size = 25),
@@ -652,14 +679,21 @@ p.pear <- ggplot(umap_df, aes(x=`UMAP 1`, y=`UMAP 2`)) + geom_point(aes(color=pe
   scale_color_manual(values = mycolors)
 rm(d.pear)
 gc()
+```
 
+```{r, fig.height=8, fig.width=12}
+p.pear
+```
+
+```{r}
 # spearman
 d.spear <- cor2dist(cor(t(dat), method = 'spearman'))
 gc()
 spear.clusts <- cutree(hclust(as.dist(d.spear), method = 'complete'), k)
 spear.clusts <- as.factor(spear.clusts)
 spear.metrics <- ComputeMetrics(mccaferry_dat$CellType, spear.clusts)
-p.spear <- ggplot(umap_df, aes(x=`UMAP 1`, y=`UMAP 2`)) + geom_point(aes(color=spear.clusts)) + 
+p.spear <- ggplot(umap_df, aes(x=`UMAP 1`, y=`UMAP 2`)) + geom_point(aes(color=spear.clusts),
+                                                                     size = 3) + 
   theme_bw() + theme(legend.position="none") + 
   ggtitle("Hierarchical clustering using Spearman \nARI=0.15; NMI=0.23; FM-Index=0.29; FMeasure=0.41") + 
   theme(axis.text.x = element_text(size = 25),
@@ -672,14 +706,22 @@ p.spear <- ggplot(umap_df, aes(x=`UMAP 1`, y=`UMAP 2`)) + geom_point(aes(color=s
   scale_color_manual(values = mycolors)
 rm(d.spear)
 gc()
+```
 
+
+```{r, fig.height=8, fig.width=12}
+p.spear
+```
+
+```{r}
 # cosine
 d.cos <- cor2dist(coop::tcosine(dat))
 gc()
 cos.clusts <- cutree(hclust(as.dist(d.cos), method = 'complete'), k)
 cos.clusts <- as.factor(cos.clusts)
 cos.metrics <- ComputeMetrics(mccaferry_dat$CellType, cos.clusts)
-p.cos <- ggplot(umap_df, aes(x=`UMAP 1`, y=`UMAP 2`)) + geom_point(aes(color=cos.clusts)) + 
+p.cos <- ggplot(umap_df, aes(x=`UMAP 1`, y=`UMAP 2`)) + geom_point(aes(color=cos.clusts),
+                                                                   size = 3) + 
   theme_bw() + theme(legend.position="none") + 
   ggtitle("Hierarchical clustering using Cosine \nARI=0.10; NMI=0.23; FM-Index=0.27; FMeasure=0.37") + 
   theme(axis.text.x = element_text(size = 25),
@@ -692,13 +734,20 @@ p.cos <- ggplot(umap_df, aes(x=`UMAP 1`, y=`UMAP 2`)) + geom_point(aes(color=cos
   scale_color_manual(values = mycolors)
 rm(d.cos)
 gc()
+```
 
+```{r, fig.height=8, fig.width=12}
+p.cos
+```
+
+```{r}
 # euclidean
 d.eucl <- parallelDist(as.matrix(dat))
 eucl.clusts <- cutree(fastcluster::hclust(d.eucl, method = 'complete'), k)
 eucl.clusts <- as.factor(eucl.clusts)
 eucl.metrics <- ComputeMetrics(mccaferry_dat$CellType, eucl.clusts)
-p.eucl <- ggplot(umap_df, aes(x=`UMAP 1`, y=`UMAP 2`)) + geom_point(aes(color=eucl.clusts)) + 
+p.eucl <- ggplot(umap_df, aes(x=`UMAP 1`, y=`UMAP 2`)) + 
+  geom_point(aes(color=eucl.clusts), size = 3) + 
   theme_bw() + theme(legend.position="none") + 
   ggtitle("Hierarchical clustering using Euclidean \nARI=0.11, NMI=0.18, FM-Index=0.29, FMeasure=0.36") + 
   theme(axis.text.x = element_text(size = 25),
@@ -709,13 +758,20 @@ p.eucl <- ggplot(umap_df, aes(x=`UMAP 1`, y=`UMAP 2`)) + geom_point(aes(color=eu
         legend.text = element_text(size = 25),
         legend.title = element_text(size = 25)) + 
   scale_color_manual(values = mycolors)
- 
+```
+
+```{r, fig.height=8, fig.width=12}
+p.eucl
+```
+
+```{r}
 # manhattan
 d.man <- parallelDist(as.matrix(dat), method = 'manhattan')
 man.clusts <- cutree(fastcluster::hclust(d.man, method = 'complete'), k)
 man.clusts <- as.factor(man.clusts)
 man.metrics <- ComputeMetrics(mccaferry_dat$CellType, man.clusts)
-p.man <- ggplot(umap_df, aes(x=`UMAP 1`, y=`UMAP 2`)) + geom_point(aes(color=man.clusts)) + 
+p.man <- ggplot(umap_df, aes(x=`UMAP 1`, y=`UMAP 2`)) + geom_point(aes(color=man.clusts),
+                                                                   size = 3) + 
   theme_bw() + theme(legend.position="none") + 
   ggtitle("Hierarchical clustering using Manhattan \nARI=0.10; NMI=0.21; FM-Index=0.22; FMeasure=0.33") + 
   theme(axis.text.x = element_text(size = 25),
@@ -726,13 +782,20 @@ p.man <- ggplot(umap_df, aes(x=`UMAP 1`, y=`UMAP 2`)) + geom_point(aes(color=man
         legend.text = element_text(size = 25),
         legend.title = element_text(size = 25)) + 
   scale_color_manual(values = mycolors)
+```
 
+```{r, fig.height=8, fig.width=12}
+p.man
+```
+
+```{r}
 # maximum
 d.max <- parallelDist(as.matrix(dat), method = 'maximum')
 max.clusts <- cutree(fastcluster::hclust(d.max, method = 'complete'), k)
 max.clusts <- as.factor(max.clusts)
 max.metrics <- ComputeMetrics(mccaferry_dat$CellType, max.clusts)
-p.max <- ggplot(umap_df, aes(x=`UMAP 1`, y=`UMAP 2`)) + geom_point(aes(color=max.clusts)) + 
+p.max <- ggplot(umap_df, aes(x=`UMAP 1`, y=`UMAP 2`)) + 
+  geom_point(aes(color=max.clusts), size = 3) + 
   theme_bw() + theme(legend.position="none") + 
   ggtitle("Hierarchical clustering using Maximum \nARI=0.01; NMI=0.03; FM-Index=0.33; FMeasure=0.31") + 
   theme(axis.text.x = element_text(size = 25),
@@ -744,5 +807,20 @@ p.max <- ggplot(umap_df, aes(x=`UMAP 1`, y=`UMAP 2`)) + geom_point(aes(color=max
         legend.title = element_text(size = 25)) + 
   scale_color_manual(values = mycolors)
 ```
+
+```{r, fig.height=8, fig.width=12}
+p.max
+```
+
+```{r, fig.height=18, fig.width=28}
+cowplot::plot_grid(p.pear,p.cos, p.spear, p.eucl, p.man, p.max)
+```
+
+```{r}
+gridExtra::grid.arrange(grid::nullGrob(), p.orig, grid::nullGrob(), p.pear, p.cos,
+                        p.spear, byrow = TRUE, ncol = 3)
+```
+
+
 
 

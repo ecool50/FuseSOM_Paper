@@ -29,6 +29,7 @@ set.seed(1994)
 library(miceadds)
 library(cowplot)
 library(scDHA)
+library(ggpubr)
 source.all('/home/ewillie/Documents/PhD/Papers/FuseSOM_Paper/helper_scripts')
 ```
 
@@ -451,13 +452,16 @@ res <- rbind(res.malde.full , res.ren.full, res.risom.full, res.damond.full,
 res <- read.csv('~/Documents/PhD/Spatial_Clustering/clustering/FuseSOM_vs_FlowSOM_Vanilla_updated.csv',
                 check.names = FALSE)
 
+res$Dataset <- if_else(res$Dataset == 'Mccaferry et al', 
+                                'McCaffrey et al', res$Dataset)
+
 res.melted <- melt(res)
 res.melted$Method <- factor(res.melted$Method, 
                            levels = c('FuseSOM', 'FlowSOM'))
 ```
 
-# Generate Figure 6B
-```{r}
+# Generate Figure 6
+```{r, fig.height=10, fig.width=12}
 p.box.all <- ggpaired(res.melted, x = "Method", y = "value",
           color = "Method", palette = "startrek", 
           add = "jitter", line.color = "gray", 
@@ -476,11 +480,12 @@ p.box.all <- ggpaired(res.melted, x = "Method", y = "value",
                      label.x = 1.5, label = "p.format") +
   geom_line(aes(group = Dataset), alpha = 0.1)
 
+p.box.all
 ```
 
 
-# Generate Figure 6 A
-```{r}
+# Generate Figure S
+```{r, fig.height=10, fig.width=12}
 res$Method <- factor(res$Method, levels = c('FuseSOM', 'FlowSOM'))
 p.bar.ari <- ggplot(res, aes(x=Dataset, y=ARI, fill=Method)) + 
   geom_bar(stat = 'identity', position = position_dodge(), alpha = 1) + 
@@ -518,11 +523,10 @@ p.bar.fmeasure <- ggplot(res, aes(x=Dataset, y=FMeasure, fill=Method)) +
         axis.text.y = element_text(size = 20)) + 
   labs(title = "Fmeasure", x = "", y = "") + 
   coord_flip() + scale_fill_startrek()
+
+plot_grid(p.bar.ari, p.bar.nmi, p.bar.fm, p.bar.fmeasure)
 ```
 
-```{r}
-p.bar.final <- plot_grid(p.bar.ari, p.bar.nmi, p.bar.fm, p.bar.fmeasure)
-```
 
 # Generate Figure 6
 ```{r, fig.height=10, fig.width=18}

@@ -91,7 +91,7 @@ p.box.hclust <- ggplot(dat_comb_melted, aes(x = Method, y = Score, fill = Distan
     ) + scale_fill_jama() + ggtitle('')
 ```
 
-# Generate Figure S4
+# Generate Figure S2
 ```{r, fig.height=12, fig.width=14}
 # my_comparisons <- list( c("0.5", "1"), c("1", "2"), c("0.5", "2") )
 
